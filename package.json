@@ -1,5 +1,5 @@
 {
-    "name": "obsidian-harvest-integration",
+    "name": "obsidian-harvest",
     "version": "1.0.0",
     "description": "Harvest time tracking integration for Obsidian.",
     "main": "main.js",
