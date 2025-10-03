@@ -1,0 +1,49 @@
+# .github/workflows/release-branch.yml
+
+name: Create Release Branch
+
+on:
+  # This action runs every time you push to the 'main' branch
+  push:
+    branches:
+      - main
+  workflow-dispatch:
+
+jobs:
+  build-release-branch:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository's code from the 'main' branch
+      - name: Checkout main branch
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Git configuration for the action
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Step 3: Create and push the release branch
+      - name: Create and push the release branch
+        run: |
+          # Create a new orphan branch named 'release' which has no commit history
+          git checkout --orphan release
+          
+          # Unstage all files that were carried over from the 'main' branch
+          git rm -rf .
+          
+          # Clean the working directory of all non-essential files
+          git clean -fdx
+          
+          # Check out only the main.js and manifest.json from the 'main' branch
+          git checkout main -- main.js manifest.json
+          
+          # Add these two files to the staging area
+          git add main.js manifest.json
+          
+          # Commit the changes
+          git commit -m "Create release build"
+          
+          # Force push the 'release' branch to the remote repository.
+          # The --force flag is necessary because this branch's history is rewritten each time.
+          git push -f origin release
