@@ -1,49 +1,47 @@
 # .github/workflows/release-branch.yml
 
-name: Create Release Branch
+name: Update Release Branch
 
 on:
-  # This action runs every time you push to the 'main' branch
   push:
     branches:
       - main
   workflow_dispatch:
 
 jobs:
-  build-release-branch:
+  update-release-branch:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Check out the repository's code from the 'main' branch
       - name: Checkout main branch
         uses: actions/checkout@v3
 
-      # Step 2: Set up Git configuration for the action
       - name: Setup Git
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Step 3: Create and push the release branch
-      - name: Create and push the release branch
+      - name: Create or Update Release Branch
         run: |
-          # Create a new orphan branch named 'release' which has no commit history
-          git checkout --orphan release
-          
-          # Unstage all files that were carried over from the 'main' branch
-          git rm -rf .
-          
-          # Clean the working directory of all non-essential files
-          git clean -fdx
-          
-          # Check out only the main.js and manifest.json from the 'main' branch
+          # Fetch the release branch if it exists, to ensure we have its history
+          git fetch origin release || true
+
+          # Create or switch to the 'release' branch
+          # If 'release' exists, this switches to it. If not, it creates it based on main.
+          git checkout -b release origin/release || git checkout -b release main
+
+          # Remove the old main.js and manifest.json if they exist on the release branch
+          git rm -f main.js manifest.json || true
+
+          # Checkout main.js and manifest.json from the 'main' branch
           git checkout main -- main.js manifest.json
-          
-          # Add these two files to the staging area
+
+          # Add the updated files
           git add main.js manifest.json
-          
-          # Commit the changes
-          git commit -m "Create release build"
-          
-          # Force push the 'release' branch to the remote repository.
-          # The --force flag is necessary because this branch's history is rewritten each time.
-          git push -f origin release
+
+          # Check if there are any changes to commit
+          git diff --quiet --exit-code --cached || git commit -m "Update main.js and manifest.json from main"
+
+          # Push the 'release' branch to the remote repository.
+          # Use --force-with-lease to prevent accidental overwrites if someone else
+          # pushed to 'release' in the meantime.
+          git push origin release --force-with-lease
