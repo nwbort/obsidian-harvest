@@ -352,10 +352,15 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     return Array.from(recentProjectsMap.values());
   }
   async startTimer(projectId, taskId) {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = (today.getMonth() + 1).toString().padStart(2, "0");
+    const day = today.getDate().toString().padStart(2, "0");
+    const spentDate = `${year}-${month}-${day}`;
     const body = {
       project_id: projectId,
       task_id: taskId,
-      spent_date: new Date().toISOString().slice(0, 10)
+      spent_date: spentDate
     };
     const result = await this.request("/time_entries", "POST", body);
     if (result) {
