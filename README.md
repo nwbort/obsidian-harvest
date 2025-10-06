@@ -8,6 +8,7 @@ Integrates [Harvest](https://www.getharvest.com/) time tracking directly into yo
 
 *   **Status Bar Integration:** See your currently running Harvest timer, including the project, task, and duration, right in the Obsidian status bar.
 *   **Start & Stop Timers:** Use Obsidian's command palette to quickly start and stop your timers.
+*   **Time Reports:** Generate and view reports of your time entries directly within your notes using a simple query language.
 
 ## How to Install
 
@@ -57,7 +58,56 @@ Access these commands through the command palette (`Ctrl/Cmd + P`):
 *   **Refresh Harvest Projects:**
     *   Use this command to manually update the list of projects from your Harvest account.
 
-### 3. Status Bar
+### 3. Rendering Time Reports with HQL
+
+You can render time tracking reports directly inside your notes using `harvest` code blocks. This uses a simple Harvest Query Language (HQL).
+
+#### How it Works
+
+Create a code block with the language identifier `harvest`.
+
+**List Report**
+
+To get a list of your time entries for a specific period:
+
+````
+```harvest
+LIST TODAY
+```````
+
+````
+```harvest
+LIST PAST 7 DAYS
+```````
+
+**Summary Report**
+
+To get a summary of hours tracked per project for a specific period:
+
+````
+```harvest
+SUMMARY WEEK```````
+
+````
+```harvest
+SUMMARY FROM 2025-01-01 TO 2025-01-31
+```````
+
+#### Supported Syntax
+
+**Query Types:**
+*   `LIST`: Shows a detailed list of individual time entries.
+*   `SUMMARY`: Shows total hours and a breakdown by project.
+
+**Time Ranges:**
+*   `TODAY`
+*   `WEEK` (This week, Monday to Sunday)
+*   `MONTH` (This calendar month)
+*   `PAST <number> DAYS` (e.g., `PAST 14 DAYS`)
+*   `FROM <YYYY-MM-DD> TO <YYYY-MM-DD>`
+
+
+### 4. Status Bar
 
 The status bar item at the bottom of your Obsidian window provides at-a-glance information:
 *   **No Timer Running:** Displays "Harvest: No timer running".

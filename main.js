@@ -28,6 +28,143 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
+function parseQuery(source) {
+  const tokens = source.trim().split(/\s+/).map((t) => t.toUpperCase());
+  if (tokens.length < 2)
+    throw new Error("Query is too short.");
+  const type = tokens[0];
+  if (type !== "LIST" /* LIST */ && type !== "SUMMARY" /* SUMMARY */) {
+    throw new Error(`Invalid query type: ${type}. Must be LIST or SUMMARY.`);
+  }
+  const { from, to } = parseTimeRange(tokens.slice(1));
+  return { type, from, to };
+}
+function parseTimeRange(tokens) {
+  const today = new Date();
+  const formatDate = (date) => date.toISOString().split("T")[0];
+  let from;
+  let to;
+  switch (tokens[0]) {
+    case "TODAY":
+      from = today;
+      to = today;
+      break;
+    case "WEEK":
+      const dayOfWeek = today.getDay();
+      const firstDayOfWeek = new Date(today.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)));
+      from = firstDayOfWeek;
+      to = new Date(new Date(firstDayOfWeek).setDate(firstDayOfWeek.getDate() + 6));
+      break;
+    case "MONTH":
+      from = new Date(today.getFullYear(), today.getMonth(), 1);
+      to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      break;
+    case "PAST":
+      const count = parseInt(tokens[1]);
+      if (isNaN(count) || tokens[2] !== "DAYS")
+        throw new Error("Invalid PAST format. Use 'PAST <number> DAYS'.");
+      to = today;
+      from = new Date(new Date().setDate(today.getDate() - (count - 1)));
+      break;
+    case "FROM":
+      if (tokens.length < 4 || tokens[2] !== "TO")
+        throw new Error("Invalid FROM...TO format.");
+      from = new Date(tokens[1]);
+      to = new Date(tokens[3]);
+      if (isNaN(from.getTime()) || isNaN(to.getTime()))
+        throw new Error("Invalid date format in FROM...TO. Use YYYY-MM-DD.");
+      break;
+    default:
+      throw new Error(`Unknown time range specifier: ${tokens[0]}`);
+  }
+  return { from: formatDate(from), to: formatDate(to) };
+}
+function renderReport(container, entries, query) {
+  container.empty();
+  const wrapper = container.createDiv({ cls: "harvest-report" });
+  if (entries.length === 0) {
+    wrapper.createEl("p", { text: "No time entries found for the selected period." });
+    return;
+  }
+  if (query.type === "LIST" /* LIST */) {
+    renderList(wrapper, entries);
+  } else if (query.type === "SUMMARY" /* SUMMARY */) {
+    renderSummary(wrapper, entries);
+  }
+}
+function renderList(container, entries) {
+  const table = container.createEl("table", { cls: "harvest-table" });
+  const thead = table.createTHead();
+  const headerRow = thead.insertRow();
+  headerRow.createEl("th", { text: "Project" });
+  headerRow.createEl("th", { text: "Task" });
+  headerRow.createEl("th", { text: "Date" });
+  headerRow.createEl("th", { text: "Hours" });
+  const tbody = table.createTBody();
+  for (const entry of entries) {
+    const row = tbody.insertRow();
+    row.createEl("td", { text: entry.project.name });
+    row.createEl("td", { text: entry.task.name });
+    row.createEl("td", { text: entry.spent_date });
+    row.createEl("td", { text: entry.hours.toFixed(2), cls: "harvest-hours" });
+  }
+}
+function renderSummary(container, entries) {
+  let totalHours = 0;
+  const projectTotals = {};
+  for (const entry of entries) {
+    totalHours += entry.hours;
+    const projectName = entry.project.name;
+    if (!projectTotals[projectName]) {
+      projectTotals[projectName] = 0;
+    }
+    projectTotals[projectName] += entry.hours;
+  }
+  container.createEl("h3", { text: "Time Summary" });
+  const summaryDiv = container.createDiv({ cls: "harvest-summary" });
+  summaryDiv.createEl("p").createEl("strong", { text: `Total Hours: ${totalHours.toFixed(2)}` });
+  const barChartContainer = summaryDiv.createDiv({ cls: "harvest-barchart-container" });
+  const colors = ["#84b65a", "#c25956", "#59a7c2", "#c29b59", "#8e59c2", "#c2598e", "#5ac28a"];
+  let colorIndex = 0;
+  const sortedProjects = Object.keys(projectTotals).sort((a, b) => projectTotals[b] - projectTotals[a]);
+  for (const projectName of sortedProjects) {
+    const projectHours = projectTotals[projectName];
+    const percentage = totalHours > 0 ? projectHours / totalHours * 100 : 0;
+    const color = colors[colorIndex % colors.length];
+    const bar = barChartContainer.createDiv({ cls: "harvest-barchart-bar" });
+    bar.style.width = `${percentage}%`;
+    bar.style.backgroundColor = color;
+    bar.title = `${projectName}: ${projectHours.toFixed(2)} hours`;
+    colorIndex++;
+  }
+  const legendContainer = summaryDiv.createDiv({ cls: "harvest-barchart-legend" });
+  colorIndex = 0;
+  for (const projectName of sortedProjects) {
+    const projectHours = projectTotals[projectName];
+    const color = colors[colorIndex % colors.length];
+    const legendItem = legendContainer.createDiv({ cls: "harvest-legend-item" });
+    const colorSwatch = legendItem.createDiv({ cls: "harvest-legend-swatch" });
+    colorSwatch.style.backgroundColor = color;
+    legendItem.createSpan({ text: `${projectName}: ${projectHours.toFixed(2)} hours` });
+    colorIndex++;
+  }
+}
+var hqlProcessor = (plugin) => async (source, el, ctx) => {
+  try {
+    const query = parseQuery(source);
+    if (!query)
+      return;
+    el.setText("Loading Harvest report...");
+    const entries = await plugin.getTimeEntries(query);
+    if (entries) {
+      renderReport(el, entries, query);
+    } else {
+      el.setText("Failed to fetch Harvest report.");
+    }
+  } catch (e) {
+    el.setText(`Error processing Harvest query: ${e.message}`);
+  }
+};
 var DEFAULT_SETTINGS = {
   personalAccessToken: "",
   accountId: "",
@@ -39,13 +176,18 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     super(...arguments);
     this.runningTimer = null;
     this.projectCache = [];
+    // Cache for the combined project list
+    this.userId = null;
   }
-  // Cache for the combined project list
   async onload() {
     await this.loadSettings();
+    this.addReportStyles();
     this.statusBarItemEl = this.addStatusBarItem();
     this.statusBarItemEl.setText("Harvest");
     this.addSettingTab(new HarvestSettingTab(this.app, this));
+    if (this.settings.personalAccessToken && this.settings.accountId) {
+      await this.fetchCurrentUserId();
+    }
     this.fetchAllTrackableProjects();
     this.addCommand({
       id: "start-harvest-timer",
@@ -74,6 +216,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
         new import_obsidian.Notice("Harvest project list has been updated.");
       }
     });
+    this.registerMarkdownCodeBlockProcessor("harvest", hqlProcessor(this));
     const pollingMinutes = this.settings.pollingInterval > 0 ? this.settings.pollingInterval : 5;
     this.timerInterval = window.setInterval(() => this.updateRunningTimer(), pollingMinutes * 60 * 1e3);
     this.updateRunningTimer();
@@ -82,6 +225,24 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
     }
+  }
+  addReportStyles() {
+    const css = `
+            .harvest-report h3 { margin-bottom: 0.5em; }
+            .harvest-barchart-container { display: flex; width: 100%; height: 20px; border-radius: 3px; overflow: hidden; margin-bottom: 1em; }
+            .harvest-barchart-bar { height: 100%; }
+            .harvest-barchart-legend { display: flex; flex-direction: column; gap: 0.5em; }
+            .harvest-legend-item { display: flex; align-items: center; }
+            .harvest-legend-swatch { width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; }
+            .harvest-table { width: 100%; border-collapse: collapse; }
+            .harvest-table th, .harvest-table td { padding: 8px; border: 1px solid var(--background-modifier-border); text-align: left; }
+            .harvest-table th { font-weight: bold; }
+            .harvest-hours { text-align: right; }
+        `;
+    const styleEl = document.createElement("style");
+    styleEl.id = "obsidian-harvest-report-styles";
+    styleEl.innerHTML = css;
+    document.head.appendChild(styleEl);
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -118,6 +279,28 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       return null;
     }
   }
+  async fetchCurrentUserId() {
+    const me = await this.request("/users/me");
+    if (me && me.id) {
+      this.userId = me.id;
+    } else {
+      this.userId = null;
+      new import_obsidian.Notice("Could not retrieve Harvest User ID.");
+      console.error("Failed to fetch Harvest User ID.");
+    }
+  }
+  async getTimeEntries(query) {
+    if (!this.userId) {
+      new import_obsidian.Notice("Harvest User ID not found. Cannot fetch your time entries.");
+      return [];
+    }
+    const endpoint = `/time_entries?from=${query.from}&to=${query.to}&user_id=${this.userId}`;
+    const data = await this.request(endpoint);
+    if (data && data.time_entries) {
+      return data.time_entries;
+    }
+    return [];
+  }
   async fetchAllTrackableProjects(forceRefresh = false) {
     if (this.projectCache.length > 0 && !forceRefresh) {
       return this.projectCache;
@@ -152,10 +335,12 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     return allProjects;
   }
   async getRecentProjectsFromTimeEntries() {
+    if (!this.userId)
+      return [];
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
-    const data = await this.request(`/time_entries?from=${fromDate}`);
+    const data = await this.request(`/time_entries?from=${fromDate}&user_id=${this.userId}`);
     if (!data || !data.time_entries)
       return [];
     const recentProjectsMap = /* @__PURE__ */ new Map();
@@ -179,7 +364,9 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     }
   }
   async updateRunningTimer() {
-    const data = await this.request("/time_entries?is_running=true");
+    if (!this.userId)
+      return;
+    const data = await this.request(`/time_entries?is_running=true&user_id=${this.userId}`);
     if (data && data.time_entries && data.time_entries.length > 0) {
       this.runningTimer = data.time_entries[0];
       const { project, task, hours } = this.runningTimer;
@@ -259,10 +446,16 @@ var HarvestSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Personal Access Token").setDesc("Get this from the Developers section of your Harvest ID.").addText((text) => text.setPlaceholder("Enter your token").setValue(this.plugin.settings.personalAccessToken).onChange(async (value) => {
       this.plugin.settings.personalAccessToken = value;
       await this.plugin.saveSettings();
+      if (this.plugin.settings.accountId) {
+        await this.plugin.fetchCurrentUserId();
+      }
     }));
     new import_obsidian.Setting(containerEl).setName("Account ID").setDesc("You can also find this on the same page as your token.").addText((text) => text.setPlaceholder("Enter your Account ID").setValue(this.plugin.settings.accountId).onChange(async (value) => {
       this.plugin.settings.accountId = value;
       await this.plugin.saveSettings();
+      if (this.plugin.settings.personalAccessToken) {
+        await this.plugin.fetchCurrentUserId();
+      }
     }));
     new import_obsidian.Setting(containerEl).setName("Polling Interval").setDesc("How often to check for a running timer, in minutes. Requires a reload to take effect.").addText((text) => text.setPlaceholder("Default: 5").setValue(String(this.plugin.settings.pollingInterval)).onChange(async (value) => {
       const interval = parseInt(value);
