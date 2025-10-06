@@ -208,6 +208,20 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       }
     });
     this.addCommand({
+      id: "toggle-harvest-timer",
+      name: "Toggle Harvest Timer (Start if stopped, Stop if started)",
+      callback: async () => {
+        await this.updateRunningTimer();
+        if (this.runningTimer) {
+          new import_obsidian.Notice("Stopping Harvest timer...");
+          await this.stopTimer(this.runningTimer.id);
+        } else {
+          new import_obsidian.Notice("No timer running. Starting a new one...");
+          new ProjectSuggestModal(this.app, this).open();
+        }
+      }
+    });
+    this.addCommand({
       id: "refresh-harvest-projects",
       name: "Refresh Harvest Projects",
       callback: async () => {

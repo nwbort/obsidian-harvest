@@ -244,6 +244,21 @@ export default class HarvestPlugin extends Plugin {
         });
 
         this.addCommand({
+            id: 'toggle-harvest-timer',
+            name: 'Toggle Harvest Timer (Start if stopped, Stop if started)',
+            callback: async () => {
+                await this.updateRunningTimer();
+                if (this.runningTimer) {
+                    new Notice('Stopping Harvest timer...');
+                    await this.stopTimer(this.runningTimer.id);
+                } else {
+                    new Notice('No timer running. Starting a new one...');
+                    new ProjectSuggestModal(this.app, this).open();
+                }
+            }
+        });
+
+        this.addCommand({
             id: 'refresh-harvest-projects',
             name: 'Refresh Harvest Projects',
             callback: async () => {
