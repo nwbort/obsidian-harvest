@@ -415,25 +415,45 @@ export default class HarvestPlugin extends Plugin {
         return Array.from(recentProjectsMap.values());
     }
     
-    async startTimer(projectId: number, taskId: number) {
+async startTimer(projectId: number, taskId: number) {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const day = today.getDate().toString().padStart(2, '0');
+    const spentDate = `${year}-${month}-${day}`;
 
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = (today.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-        const day = today.getDate().toString().padStart(2, '0');
-        const spentDate = `${year}-${month}-${day}`;
-
-        const body = {
-            project_id: projectId,
-            task_id: taskId,
-            spent_date: spentDate,
-        };
-        const result = await this.request('/time_entries', 'POST', body);
-        if (result) {
-            new Notice('Harvest timer started!');
-            this.updateRunningTimer();
+    // Check for existing entry today for this project/task
+    if (this.userId) {
+        const data = await this.request(`/time_entries?from=${spentDate}&to=${spentDate}&user_id=${this.userId}`);
+        if (data && data.time_entries) {
+            const existingEntry = data.time_entries.find(
+                (entry: any) => entry.project.id === projectId && entry.task.id === taskId
+            );
+            
+            if (existingEntry) {
+                // Restart the existing entry
+                const result = await this.request(`/time_entries/${existingEntry.id}/restart`, 'PATCH');
+                if (result) {
+                    new Notice('Harvest timer restarted!');
+                    this.updateRunningTimer();
+                }
+                return;
+            }
         }
     }
+
+    // No existing entry found, create a new one
+    const body = {
+        project_id: projectId,
+        task_id: taskId,
+        spent_date: spentDate,
+    };
+    const result = await this.request('/time_entries', 'POST', body);
+    if (result) {
+        new Notice('Harvest timer started!');
+        this.updateRunningTimer();
+    }
+}
 
     async updateRunningTimer() {
         if (!this.userId) return;
