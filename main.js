@@ -371,6 +371,22 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     const month = (today.getMonth() + 1).toString().padStart(2, "0");
     const day = today.getDate().toString().padStart(2, "0");
     const spentDate = `${year}-${month}-${day}`;
+    if (this.userId) {
+      const data = await this.request(`/time_entries?from=${spentDate}&to=${spentDate}&user_id=${this.userId}`);
+      if (data && data.time_entries) {
+        const existingEntry = data.time_entries.find(
+          (entry) => entry.project.id === projectId && entry.task.id === taskId
+        );
+        if (existingEntry) {
+          const result2 = await this.request(`/time_entries/${existingEntry.id}/restart`, "PATCH");
+          if (result2) {
+            new import_obsidian.Notice("Harvest timer restarted!");
+            this.updateRunningTimer();
+          }
+          return;
+        }
+      }
+    }
     const body = {
       project_id: projectId,
       task_id: taskId,
