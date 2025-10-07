@@ -73,12 +73,14 @@ To get a list of your time entries for a specific period:
 ````
 ```harvest
 LIST TODAY
-```````
+```
+````
 
 ````
 ```harvest
 LIST PAST 7 DAYS
-```````
+```
+````
 
 **Summary Report**
 
@@ -86,12 +88,15 @@ To get a summary of hours tracked per project for a specific period:
 
 ````
 ```harvest
-SUMMARY WEEK```````
+SUMMARY WEEK
+```
+````
 
 ````
 ```harvest
 SUMMARY FROM 2025-01-01 TO 2025-01-31
-```````
+```
+````
 
 #### Supported Syntax
 
