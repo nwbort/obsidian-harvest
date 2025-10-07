@@ -31,7 +31,12 @@ function parseQuery(source: string): HarvestQuery {
 
 function parseTimeRange(tokens: string[]): { from: ISODate, to: ISODate } {
     const today = new Date();
-    const formatDate = (date: Date): ISODate => date.toISOString().split('T')[0];
+    const formatDate = (date: Date): ISODate => {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     let from: Date;
     let to: Date;
