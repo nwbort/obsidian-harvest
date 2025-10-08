@@ -1,7 +1,7 @@
 {
-    "name": "obsidian-harvest",
-    "version": "1.0.2",
-    "description": "Harvest time tracking integration for Obsidian.",
+    "name": "harvest",
+    "version": "1.0.3",
+    "description": "Interact with Harvest time tracking tools.",
     "main": "main.js",
     "scripts": {
         "dev": "node esbuild.config.mjs",
