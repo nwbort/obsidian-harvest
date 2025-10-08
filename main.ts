@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, Setting, MarkdownPostProcessorContext } from 'obsidian';
+import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, Setting, MarkdownPostProcessorContext, requestUrl } from 'obsidian';
 
 // --- HQL (Harvest Query Language) TYPES ---
 type ISODate = string;
@@ -141,8 +141,8 @@ function renderSummary(container: HTMLElement, entries: any[]) {
         const color = colors[colorIndex % colors.length];
 
         const bar = barChartContainer.createDiv({ cls: 'harvest-barchart-bar' });
-        bar.style.width = `${percentage}%`;
-        bar.style.backgroundColor = color;
+        bar.style.setProperty('--bar-width', `${percentage}%`);
+        bar.style.setProperty('--bar-color', color);
         bar.title = `${projectName}: ${projectHours.toFixed(2)} hours`;
         colorIndex++;
     }
@@ -214,8 +214,6 @@ export default class HarvestPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
 
-        this.addReportStyles();
-
         this.statusBarItemEl = this.addStatusBarItem();
         this.statusBarItemEl.setText('Harvest');
 
@@ -230,7 +228,7 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'start-harvest-timer',
-            name: 'Start Harvest timer',
+            name: 'Start timer',
             callback: () => {
                 new ProjectSuggestModal(this.app, this).open();
             }
@@ -238,7 +236,7 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'stop-harvest-timer',
-            name: 'Stop Harvest timer',
+            name: 'Stop timer',
             callback: async () => {
                 if (this.runningTimer) {
                     await this.stopTimer(this.runningTimer.id);
@@ -250,11 +248,11 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'toggle-harvest-timer',
-            name: 'Toggle Harvest timer',
+            name: 'Toggle timer',
             callback: async () => {
                 await this.updateRunningTimer();
                 if (this.runningTimer) {
-                    new Notice('Stopping Harvest timer...');
+                    new Notice('Stopping timer...');
                     await this.stopTimer(this.runningTimer.id);
                 } else {
                     new Notice('No timer running. Starting a new one...');
@@ -265,11 +263,11 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'refresh-harvest-projects',
-            name: 'Refresh Harvest projects',
+            name: 'Refresh projects',
             callback: async () => {
                 new Notice('Refreshing project list from Harvest...');
                 await this.fetchAllTrackableProjects(true); // Force a refresh
-                new Notice('Harvest project list has been updated.');
+                new Notice('Project list has been updated.');
             }
         });
 
@@ -287,25 +285,6 @@ export default class HarvestPlugin extends Plugin {
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
         }
-    }
-
-    addReportStyles() {
-        const css = `
-            .harvest-report h3 { margin-bottom: 0.5em; }
-            .harvest-barchart-container { display: flex; width: 100%; height: 20px; border-radius: 3px; overflow: hidden; margin-bottom: 1em; }
-            .harvest-barchart-bar { height: 100%; }
-            .harvest-barchart-legend { display: flex; flex-direction: column; gap: 0.5em; }
-            .harvest-legend-item { display: flex; align-items: center; }
-            .harvest-legend-swatch { width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; }
-            .harvest-table { width: 100%; border-collapse: collapse; }
-            .harvest-table th, .harvest-table td { padding: 8px; border: 1px solid var(--background-modifier-border); text-align: left; }
-            .harvest-table th { font-weight: bold; }
-            .harvest-hours { text-align: right; }
-        `;
-        const styleEl = document.createElement('style');
-        styleEl.id = 'obsidian-harvest-report-styles';
-        styleEl.innerHTML = css;
-        document.head.appendChild(styleEl);
     }
 
     async loadSettings() {
@@ -328,17 +307,18 @@ export default class HarvestPlugin extends Plugin {
             'Content-Type': 'application/json'
         };
         try {
-            const response = await fetch(`https://api.harvestapp.com/v2${endpoint}`, {
+            const response = await requestUrl({
+                url: `https://api.harvestapp.com/v2${endpoint}`,
                 method: method,
                 headers: headers,
-                body: body ? JSON.stringify(body) : null
+                body: body ? JSON.stringify(body) : undefined
             });
-            if (!response.ok) {
-                const errorData = await response.json();
-                new Notice(`Harvest API error: ${errorData.message || response.statusText}`);
+
+            if (response.status >= 400) {
+                new Notice(`Harvest API error: ${response.json.message || response.status}`);
                 return null;
             }
-            return response.json();
+            return response.json;
         } catch (error) {
             new Notice('Failed to connect to Harvest API.');
             console.error('Harvest API request error:', error);
@@ -439,7 +419,7 @@ async startTimer(projectId: number, taskId: number) {
                 // Restart the existing entry
                 const result = await this.request(`/time_entries/${existingEntry.id}/restart`, 'PATCH');
                 if (result) {
-                    new Notice('Harvest timer restarted!');
+                    new Notice('Timer restarted!');
                     this.updateRunningTimer();
                 }
                 return;
@@ -455,7 +435,7 @@ async startTimer(projectId: number, taskId: number) {
     };
     const result = await this.request('/time_entries', 'POST', body);
     if (result) {
-        new Notice('Harvest timer started!');
+        new Notice('Timer started!');
         this.updateRunningTimer();
     }
 }
@@ -476,7 +456,7 @@ async startTimer(projectId: number, taskId: number) {
     async stopTimer(timerId: number) {
         const result = await this.request(`/time_entries/${timerId}/stop`, 'PATCH');
         if (result) {
-            new Notice('Harvest timer stopped.');
+            new Notice('Timer stopped.');
             this.updateRunningTimer();
         }
     }

@@ -1,0 +1,45 @@
+/* styles.css */
+.harvest-report h3 { 
+    margin-bottom: 0.5em; 
+}
+.harvest-barchart-container { 
+    display: flex; 
+    width: 100%; 
+    height: 20px; 
+    border-radius: 3px; 
+    overflow: hidden; 
+    margin-bottom: 1em; 
+}
+.harvest-barchart-bar { 
+    height: 100%; 
+}
+.harvest-barchart-legend { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.5em; 
+}
+.harvest-legend-item { 
+    display: flex; 
+    align-items: center; 
+}
+.harvest-legend-swatch { 
+    width: 12px; 
+    height: 12px; 
+    margin-right: 8px; 
+    border-radius: 2px; 
+}
+.harvest-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+}
+.harvest-table th, .harvest-table td { 
+    padding: 8px; 
+    border: 1px solid var(--background-modifier-border); 
+    text-align: left; 
+}
+.harvest-table th { 
+    font-weight: bold; 
+}
+.harvest-hours { 
+    text-align: right; 
+}

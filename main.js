@@ -137,8 +137,8 @@ function renderSummary(container, entries) {
     const percentage = totalHours > 0 ? projectHours / totalHours * 100 : 0;
     const color = colors[colorIndex % colors.length];
     const bar = barChartContainer.createDiv({ cls: "harvest-barchart-bar" });
-    bar.style.width = `${percentage}%`;
-    bar.style.backgroundColor = color;
+    bar.style.setProperty("--bar-width", `${percentage}%`);
+    bar.style.setProperty("--bar-color", color);
     bar.title = `${projectName}: ${projectHours.toFixed(2)} hours`;
     colorIndex++;
   }
@@ -186,7 +186,6 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
   }
   async onload() {
     await this.loadSettings();
-    this.addReportStyles();
     this.statusBarItemEl = this.addStatusBarItem();
     this.statusBarItemEl.setText("Harvest");
     this.addSettingTab(new HarvestSettingTab(this.app, this));
@@ -196,14 +195,14 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     this.fetchAllTrackableProjects();
     this.addCommand({
       id: "start-harvest-timer",
-      name: "Start Harvest timer",
+      name: "Start timer",
       callback: () => {
         new ProjectSuggestModal(this.app, this).open();
       }
     });
     this.addCommand({
       id: "stop-harvest-timer",
-      name: "Stop Harvest timer",
+      name: "Stop timer",
       callback: async () => {
         if (this.runningTimer) {
           await this.stopTimer(this.runningTimer.id);
@@ -214,11 +213,11 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     });
     this.addCommand({
       id: "toggle-harvest-timer",
-      name: "Toggle Harvest timer",
+      name: "Toggle timer",
       callback: async () => {
         await this.updateRunningTimer();
         if (this.runningTimer) {
-          new import_obsidian.Notice("Stopping Harvest timer...");
+          new import_obsidian.Notice("Stopping timer...");
           await this.stopTimer(this.runningTimer.id);
         } else {
           new import_obsidian.Notice("No timer running. Starting a new one...");
@@ -228,11 +227,11 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     });
     this.addCommand({
       id: "refresh-harvest-projects",
-      name: "Refresh Harvest projects",
+      name: "Refresh projects",
       callback: async () => {
         new import_obsidian.Notice("Refreshing project list from Harvest...");
         await this.fetchAllTrackableProjects(true);
-        new import_obsidian.Notice("Harvest project list has been updated.");
+        new import_obsidian.Notice("Project list has been updated.");
       }
     });
     this.registerMarkdownCodeBlockProcessor("harvest", hqlProcessor(this));
@@ -244,24 +243,6 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
     }
-  }
-  addReportStyles() {
-    const css = `
-            .harvest-report h3 { margin-bottom: 0.5em; }
-            .harvest-barchart-container { display: flex; width: 100%; height: 20px; border-radius: 3px; overflow: hidden; margin-bottom: 1em; }
-            .harvest-barchart-bar { height: 100%; }
-            .harvest-barchart-legend { display: flex; flex-direction: column; gap: 0.5em; }
-            .harvest-legend-item { display: flex; align-items: center; }
-            .harvest-legend-swatch { width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; }
-            .harvest-table { width: 100%; border-collapse: collapse; }
-            .harvest-table th, .harvest-table td { padding: 8px; border: 1px solid var(--background-modifier-border); text-align: left; }
-            .harvest-table th { font-weight: bold; }
-            .harvest-hours { text-align: right; }
-        `;
-    const styleEl = document.createElement("style");
-    styleEl.id = "obsidian-harvest-report-styles";
-    styleEl.innerHTML = css;
-    document.head.appendChild(styleEl);
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -281,17 +262,17 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       "Content-Type": "application/json"
     };
     try {
-      const response = await fetch(`https://api.harvestapp.com/v2${endpoint}`, {
+      const response = await (0, import_obsidian.requestUrl)({
+        url: `https://api.harvestapp.com/v2${endpoint}`,
         method,
         headers,
-        body: body ? JSON.stringify(body) : null
+        body: body ? JSON.stringify(body) : void 0
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        new import_obsidian.Notice(`Harvest API error: ${errorData.message || response.statusText}`);
+      if (response.status >= 400) {
+        new import_obsidian.Notice(`Harvest API error: ${response.json.message || response.status}`);
         return null;
       }
-      return response.json();
+      return response.json;
     } catch (error) {
       new import_obsidian.Notice("Failed to connect to Harvest API.");
       console.error("Harvest API request error:", error);
@@ -385,7 +366,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
         if (existingEntry) {
           const result2 = await this.request(`/time_entries/${existingEntry.id}/restart`, "PATCH");
           if (result2) {
-            new import_obsidian.Notice("Harvest timer restarted!");
+            new import_obsidian.Notice("Timer restarted!");
             this.updateRunningTimer();
           }
           return;
@@ -399,7 +380,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     };
     const result = await this.request("/time_entries", "POST", body);
     if (result) {
-      new import_obsidian.Notice("Harvest timer started!");
+      new import_obsidian.Notice("Timer started!");
       this.updateRunningTimer();
     }
   }
@@ -419,7 +400,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
   async stopTimer(timerId) {
     const result = await this.request(`/time_entries/${timerId}/stop`, "PATCH");
     if (result) {
-      new import_obsidian.Notice("Harvest timer stopped.");
+      new import_obsidian.Notice("Timer stopped.");
       this.updateRunningTimer();
     }
   }

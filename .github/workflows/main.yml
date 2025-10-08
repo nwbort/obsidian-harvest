@@ -29,17 +29,17 @@ jobs:
           # If 'release' exists, this switches to it. If not, it creates it based on main.
           git checkout -b release origin/release || git checkout -b release main
 
-          # Remove the old main.js and manifest.json if they exist on the release branch
-          git rm -f main.js manifest.json || true
+          # Remove the old files if they exist on the release branch
+          git rm -f main.js manifest.json styles.css || true
 
-          # Checkout main.js and manifest.json from the 'main' branch
-          git checkout main -- main.js manifest.json
+          # Checkout files from the 'main' branch
+          git checkout main -- main.js manifest.json styles.css
 
           # Add the updated files
-          git add main.js manifest.json
+          git add main.js manifest.json styles.css
 
           # Check if there are any changes to commit
-          git diff --quiet --exit-code --cached || git commit -m "Update main.js and manifest.json from main"
+          git diff --quiet --exit-code --cached || git commit -m "Update files from main"
 
           # Push the 'release' branch to the remote repository.
           # Use --force-with-lease to prevent accidental overwrites if someone else
