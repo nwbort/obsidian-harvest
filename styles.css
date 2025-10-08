@@ -12,6 +12,8 @@
 }
 .harvest-barchart-bar { 
     height: 100%; 
+    width: var(--bar-width);
+    background-color: var(--bar-color);
 }
 .harvest-barchart-legend { 
     display: flex; 
