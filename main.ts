@@ -124,9 +124,9 @@ function renderSummary(container: HTMLElement, entries: any[]) {
         projectTotals[projectName] += entry.hours;
     }
 
-    container.createEl('h3', { text: 'Time Summary' });
+    container.createEl('h3', { text: 'Time summary' });
     const summaryDiv = container.createDiv({ cls: 'harvest-summary' });
-    summaryDiv.createEl('p').createEl('strong', { text: `Total Hours: ${totalHours.toFixed(2)}` });
+    summaryDiv.createEl('p').createEl('strong', { text: `Total hours: ${totalHours.toFixed(2)}` });
 
     // Bar Chart
     const barChartContainer = summaryDiv.createDiv({ cls: 'harvest-barchart-container' });
@@ -230,7 +230,7 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'start-harvest-timer',
-            name: 'Start Harvest Timer',
+            name: 'Start Harvest timer',
             callback: () => {
                 new ProjectSuggestModal(this.app, this).open();
             }
@@ -238,7 +238,7 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'stop-harvest-timer',
-            name: 'Stop Harvest Timer',
+            name: 'Stop Harvest timer',
             callback: async () => {
                 if (this.runningTimer) {
                     await this.stopTimer(this.runningTimer.id);
@@ -250,7 +250,7 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'toggle-harvest-timer',
-            name: 'Toggle Harvest Timer (Start if stopped, Stop if started)',
+            name: 'Toggle Harvest timer',
             callback: async () => {
                 await this.updateRunningTimer();
                 if (this.runningTimer) {
@@ -265,7 +265,7 @@ export default class HarvestPlugin extends Plugin {
 
         this.addCommand({
             id: 'refresh-harvest-projects',
-            name: 'Refresh Harvest Projects',
+            name: 'Refresh Harvest projects',
             callback: async () => {
                 new Notice('Refreshing project list from Harvest...');
                 await this.fetchAllTrackableProjects(true); // Force a refresh
@@ -335,7 +335,7 @@ export default class HarvestPlugin extends Plugin {
             });
             if (!response.ok) {
                 const errorData = await response.json();
-                new Notice(`Harvest API Error: ${errorData.message || response.statusText}`);
+                new Notice(`Harvest API error: ${errorData.message || response.statusText}`);
                 return null;
             }
             return response.json();
@@ -469,7 +469,7 @@ async startTimer(projectId: number, taskId: number) {
             this.statusBarItemEl.setText(`Harvest: ${project.name} - ${task.name} (${hours.toFixed(2)}h)`);
         } else {
             this.runningTimer = null;
-            this.statusBarItemEl.setText('Harvest: No timer running');
+            this.statusBarItemEl.setText('Harvest: no timer running');
         }
     }
 
@@ -503,7 +503,7 @@ class ProjectSuggestModal extends FuzzySuggestModal<any> {
     renderSuggestion(match: FuzzyMatch<any>, el: HTMLElement) {
         const project = match.item;
         el.createEl('div', { text: project.name });
-        el.createEl('small', { text: project.client?.name || 'No Client' });
+        el.createEl('small', { text: project.client?.name || 'No client' });
     }
 
     async onChooseItem(project: any) {
@@ -561,9 +561,9 @@ class HarvestSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
-        containerEl.createEl('h2', { text: 'Harvest Integration Settings' });
+        new Setting(containerEl).setName('Harvest integration settings').setHeading();
         new Setting(containerEl)
-            .setName('Personal Access Token')
+            .setName('Personal access token')
             .setDesc('Get this from the Developers section of your Harvest ID.')
             .addText(text => text.setPlaceholder('Enter your token').setValue(this.plugin.settings.personalAccessToken)
                 .onChange(async (value) => {
@@ -584,9 +584,8 @@ class HarvestSettingTab extends PluginSettingTab {
                         await this.plugin.fetchCurrentUserId();
                     }
                 }));
-        
         new Setting(containerEl)
-            .setName('Polling Interval')
+            .setName('Polling interval')
             .setDesc('How often to check for a running timer, in minutes. Requires a reload to take effect.')
             .addText(text => text
                 .setPlaceholder('Default: 5')

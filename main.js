@@ -125,9 +125,9 @@ function renderSummary(container, entries) {
     }
     projectTotals[projectName] += entry.hours;
   }
-  container.createEl("h3", { text: "Time Summary" });
+  container.createEl("h3", { text: "Time summary" });
   const summaryDiv = container.createDiv({ cls: "harvest-summary" });
-  summaryDiv.createEl("p").createEl("strong", { text: `Total Hours: ${totalHours.toFixed(2)}` });
+  summaryDiv.createEl("p").createEl("strong", { text: `Total hours: ${totalHours.toFixed(2)}` });
   const barChartContainer = summaryDiv.createDiv({ cls: "harvest-barchart-container" });
   const colors = ["#84b65a", "#c25956", "#59a7c2", "#c29b59", "#8e59c2", "#c2598e", "#5ac28a"];
   let colorIndex = 0;
@@ -196,14 +196,14 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     this.fetchAllTrackableProjects();
     this.addCommand({
       id: "start-harvest-timer",
-      name: "Start Harvest Timer",
+      name: "Start Harvest timer",
       callback: () => {
         new ProjectSuggestModal(this.app, this).open();
       }
     });
     this.addCommand({
       id: "stop-harvest-timer",
-      name: "Stop Harvest Timer",
+      name: "Stop Harvest timer",
       callback: async () => {
         if (this.runningTimer) {
           await this.stopTimer(this.runningTimer.id);
@@ -214,7 +214,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     });
     this.addCommand({
       id: "toggle-harvest-timer",
-      name: "Toggle Harvest Timer (Start if stopped, Stop if started)",
+      name: "Toggle Harvest timer",
       callback: async () => {
         await this.updateRunningTimer();
         if (this.runningTimer) {
@@ -228,7 +228,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     });
     this.addCommand({
       id: "refresh-harvest-projects",
-      name: "Refresh Harvest Projects",
+      name: "Refresh Harvest projects",
       callback: async () => {
         new import_obsidian.Notice("Refreshing project list from Harvest...");
         await this.fetchAllTrackableProjects(true);
@@ -288,7 +288,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       });
       if (!response.ok) {
         const errorData = await response.json();
-        new import_obsidian.Notice(`Harvest API Error: ${errorData.message || response.statusText}`);
+        new import_obsidian.Notice(`Harvest API error: ${errorData.message || response.statusText}`);
         return null;
       }
       return response.json();
@@ -413,7 +413,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       this.statusBarItemEl.setText(`Harvest: ${project.name} - ${task.name} (${hours.toFixed(2)}h)`);
     } else {
       this.runningTimer = null;
-      this.statusBarItemEl.setText("Harvest: No timer running");
+      this.statusBarItemEl.setText("Harvest: no timer running");
     }
   }
   async stopTimer(timerId) {
@@ -439,7 +439,7 @@ var ProjectSuggestModal = class extends import_obsidian.FuzzySuggestModal {
     var _a;
     const project = match.item;
     el.createEl("div", { text: project.name });
-    el.createEl("small", { text: ((_a = project.client) == null ? void 0 : _a.name) || "No Client" });
+    el.createEl("small", { text: ((_a = project.client) == null ? void 0 : _a.name) || "No client" });
   }
   async onChooseItem(project) {
     let tasks = project.task_assignments;
@@ -482,8 +482,8 @@ var HarvestSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Harvest Integration Settings" });
-    new import_obsidian.Setting(containerEl).setName("Personal Access Token").setDesc("Get this from the Developers section of your Harvest ID.").addText((text) => text.setPlaceholder("Enter your token").setValue(this.plugin.settings.personalAccessToken).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("Harvest integration settings").setHeading();
+    new import_obsidian.Setting(containerEl).setName("Personal access token").setDesc("Get this from the Developers section of your Harvest ID.").addText((text) => text.setPlaceholder("Enter your token").setValue(this.plugin.settings.personalAccessToken).onChange(async (value) => {
       this.plugin.settings.personalAccessToken = value;
       await this.plugin.saveSettings();
       if (this.plugin.settings.accountId) {
@@ -497,7 +497,7 @@ var HarvestSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.fetchCurrentUserId();
       }
     }));
-    new import_obsidian.Setting(containerEl).setName("Polling Interval").setDesc("How often to check for a running timer, in minutes. Requires a reload to take effect.").addText((text) => text.setPlaceholder("Default: 5").setValue(String(this.plugin.settings.pollingInterval)).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("Polling interval").setDesc("How often to check for a running timer, in minutes. Requires a reload to take effect.").addText((text) => text.setPlaceholder("Default: 5").setValue(String(this.plugin.settings.pollingInterval)).onChange(async (value) => {
       const interval = parseInt(value);
       if (!isNaN(interval) && interval > 0) {
         this.plugin.settings.pollingInterval = interval;
