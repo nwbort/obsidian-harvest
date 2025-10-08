@@ -129,3 +129,7 @@ The status bar item at the bottom of your Obsidian window provides at-a-glance i
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## See also
+
+Inspiration for this plugin comes from the [Toggl Track plugin](https://github.com/mcndt/obsidian-toggl-integration).
