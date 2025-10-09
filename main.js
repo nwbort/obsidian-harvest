@@ -173,8 +173,9 @@ var hqlProcessor = (plugin) => async (source, el, ctx) => {
 var DEFAULT_SETTINGS = {
   personalAccessToken: "",
   accountId: "",
-  pollingInterval: 5
+  pollingInterval: 5,
   // Default to 5 minutes
+  folderProjectCache: {}
 };
 var HarvestPlugin = class extends import_obsidian.Plugin {
   constructor() {
@@ -197,7 +198,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       id: "start-harvest-timer",
       name: "Start timer",
       callback: () => {
-        new ProjectSuggestModal(this.app, this).open();
+        new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
       }
     });
     this.addCommand({
@@ -221,7 +222,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
           await this.stopTimer(this.runningTimer.id);
         } else {
           new import_obsidian.Notice("No timer running. Starting a new one...");
-          new ProjectSuggestModal(this.app, this).open();
+          new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
         }
       }
     });
@@ -351,7 +352,12 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     });
     return Array.from(recentProjectsMap.values());
   }
-  async startTimer(projectId, taskId) {
+  async startTimer(projectId, taskId, activeFile) {
+    if (activeFile && activeFile.parent) {
+      const folderPath = activeFile.parent.path;
+      this.settings.folderProjectCache[folderPath] = { projectId, taskId };
+      await this.saveSettings();
+    }
     const today = new Date();
     const year = today.getFullYear();
     const month = (today.getMonth() + 1).toString().padStart(2, "0");
@@ -406,12 +412,25 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
   }
 };
 var ProjectSuggestModal = class extends import_obsidian.FuzzySuggestModal {
-  constructor(app, plugin) {
+  constructor(app, plugin, activeFile) {
     super(app);
     this.plugin = plugin;
+    this.activeFile = activeFile;
   }
   getItems() {
-    return this.plugin.projectCache;
+    let projects = [...this.plugin.projectCache];
+    if (this.activeFile && this.activeFile.parent) {
+      const folderPath = this.activeFile.parent.path;
+      const cachedInfo = this.plugin.settings.folderProjectCache[folderPath];
+      if (cachedInfo) {
+        const cachedProjectIndex = projects.findIndex((p) => p.id === cachedInfo.projectId);
+        if (cachedProjectIndex > -1) {
+          const cachedProject = projects.splice(cachedProjectIndex, 1)[0];
+          projects.unshift(cachedProject);
+        }
+      }
+    }
+    return projects;
   }
   getItemText(project) {
     return project.name;
@@ -429,21 +448,34 @@ var ProjectSuggestModal = class extends import_obsidian.FuzzySuggestModal {
       tasks = data == null ? void 0 : data.task_assignments;
     }
     if (tasks && tasks.length > 0) {
-      new TaskSuggestModal(this.app, this.plugin, project, tasks).open();
+      new TaskSuggestModal(this.app, this.plugin, project, tasks, this.activeFile).open();
     } else {
       new import_obsidian.Notice("No tasks found for this project.");
     }
   }
 };
 var TaskSuggestModal = class extends import_obsidian.FuzzySuggestModal {
-  constructor(app, plugin, project, tasks) {
+  constructor(app, plugin, project, tasks, activeFile) {
     super(app);
     this.plugin = plugin;
     this.project = project;
     this.tasks = tasks;
+    this.activeFile = activeFile;
   }
   getItems() {
-    return this.tasks;
+    let tasks = [...this.tasks];
+    if (this.activeFile && this.activeFile.parent) {
+      const folderPath = this.activeFile.parent.path;
+      const cachedInfo = this.plugin.settings.folderProjectCache[folderPath];
+      if (cachedInfo && cachedInfo.projectId === this.project.id) {
+        const cachedTaskIndex = tasks.findIndex((t) => t.task.id === cachedInfo.taskId);
+        if (cachedTaskIndex > -1) {
+          const cachedTask = tasks.splice(cachedTaskIndex, 1)[0];
+          tasks.unshift(cachedTask);
+        }
+      }
+    }
+    return tasks;
   }
   getItemText(taskAssignment) {
     return taskAssignment.task.name;
@@ -452,7 +484,7 @@ var TaskSuggestModal = class extends import_obsidian.FuzzySuggestModal {
     el.createEl("div", { text: match.item.task.name });
   }
   onChooseItem(taskAssignment) {
-    this.plugin.startTimer(this.project.id, taskAssignment.task.id);
+    this.plugin.startTimer(this.project.id, taskAssignment.task.id, this.activeFile);
   }
 };
 var HarvestSettingTab = class extends import_obsidian.PluginSettingTab {

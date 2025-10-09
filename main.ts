@@ -1,4 +1,14 @@
-import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, Setting, MarkdownPostProcessorContext, requestUrl } from 'obsidian';
+import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, Setting, MarkdownPostProcessorContext, requestUrl, TFile } from 'obsidian';
+
+// --- TYPES ---
+
+// Stores the last used project/task for a given folder path.
+interface FolderProjectCache {
+    [folderPath: string]: {
+        projectId: number;
+        taskId: number;
+    };
+}
 
 // --- HQL (Harvest Query Language) TYPES ---
 type ISODate = string;
@@ -193,13 +203,15 @@ interface HarvestPluginSettings {
     personalAccessToken: string;
     accountId: string;
     pollingInterval: number;
+    folderProjectCache: FolderProjectCache;
 }
 
 // Default settings to be used if none are saved
 const DEFAULT_SETTINGS: HarvestPluginSettings = {
     personalAccessToken: '',
     accountId: '',
-    pollingInterval: 5 // Default to 5 minutes
+    pollingInterval: 5, // Default to 5 minutes
+    folderProjectCache: {}
 }
 
 // Main Plugin Class
@@ -230,7 +242,7 @@ export default class HarvestPlugin extends Plugin {
             id: 'start-harvest-timer',
             name: 'Start timer',
             callback: () => {
-                new ProjectSuggestModal(this.app, this).open();
+                new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
             }
         });
 
@@ -256,7 +268,7 @@ export default class HarvestPlugin extends Plugin {
                     await this.stopTimer(this.runningTimer.id);
                 } else {
                     new Notice('No timer running. Starting a new one...');
-                    new ProjectSuggestModal(this.app, this).open();
+                    new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
                 }
             }
         });
@@ -400,45 +412,51 @@ export default class HarvestPlugin extends Plugin {
         return Array.from(recentProjectsMap.values());
     }
     
-async startTimer(projectId: number, taskId: number) {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, '0');
-    const day = today.getDate().toString().padStart(2, '0');
-    const spentDate = `${year}-${month}-${day}`;
+    async startTimer(projectId: number, taskId: number, activeFile: TFile | null) {
+        // Save the selected project/task to the cache for the current folder
+        if (activeFile && activeFile.parent) {
+            const folderPath = activeFile.parent.path;
+            this.settings.folderProjectCache[folderPath] = { projectId, taskId };
+            await this.saveSettings();
+        }
 
-    // Check for existing entry today for this project/task
-    if (this.userId) {
-        const data = await this.request(`/time_entries?from=${spentDate}&to=${spentDate}&user_id=${this.userId}`);
-        if (data && data.time_entries) {
-            const existingEntry = data.time_entries.find(
-                (entry: any) => entry.project.id === projectId && entry.task.id === taskId
-            );
-            
-            if (existingEntry) {
-                // Restart the existing entry
-                const result = await this.request(`/time_entries/${existingEntry.id}/restart`, 'PATCH');
-                if (result) {
-                    new Notice('Timer restarted!');
-                    this.updateRunningTimer();
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const day = today.getDate().toString().padStart(2, '0');
+        const spentDate = `${year}-${month}-${day}`;
+
+        // Check for existing entry today for this project/task to restart it
+        if (this.userId) {
+            const data = await this.request(`/time_entries?from=${spentDate}&to=${spentDate}&user_id=${this.userId}`);
+            if (data && data.time_entries) {
+                const existingEntry = data.time_entries.find(
+                    (entry: any) => entry.project.id === projectId && entry.task.id === taskId
+                );
+                
+                if (existingEntry) {
+                    const result = await this.request(`/time_entries/${existingEntry.id}/restart`, 'PATCH');
+                    if (result) {
+                        new Notice('Timer restarted!');
+                        this.updateRunningTimer();
+                    }
+                    return;
                 }
-                return;
             }
         }
-    }
 
-    // No existing entry found, create a new one
-    const body = {
-        project_id: projectId,
-        task_id: taskId,
-        spent_date: spentDate,
-    };
-    const result = await this.request('/time_entries', 'POST', body);
-    if (result) {
-        new Notice('Timer started!');
-        this.updateRunningTimer();
+        // No existing entry found, create a new one
+        const body = {
+            project_id: projectId,
+            task_id: taskId,
+            spent_date: spentDate,
+        };
+        const result = await this.request('/time_entries', 'POST', body);
+        if (result) {
+            new Notice('Timer started!');
+            this.updateRunningTimer();
+        }
     }
-}
 
     async updateRunningTimer() {
         if (!this.userId) return;
@@ -466,14 +484,33 @@ async startTimer(projectId: number, taskId: number) {
 
 class ProjectSuggestModal extends FuzzySuggestModal<any> {
     plugin: HarvestPlugin;
+    activeFile: TFile | null;
 
-    constructor(app: App, plugin: HarvestPlugin) {
+    constructor(app: App, plugin: HarvestPlugin, activeFile: TFile | null) {
         super(app);
         this.plugin = plugin;
+        this.activeFile = activeFile;
     }
 
     getItems(): any[] {
-        return this.plugin.projectCache;
+        let projects = [...this.plugin.projectCache]; // Create a mutable copy
+        
+        if (this.activeFile && this.activeFile.parent) {
+            const folderPath = this.activeFile.parent.path;
+            const cachedInfo = this.plugin.settings.folderProjectCache[folderPath];
+            
+            if (cachedInfo) {
+                const cachedProjectIndex = projects.findIndex(p => p.id === cachedInfo.projectId);
+                
+                if (cachedProjectIndex > -1) {
+                    // Move the cached project to the front of the list to pre-select it
+                    const cachedProject = projects.splice(cachedProjectIndex, 1)[0];
+                    projects.unshift(cachedProject);
+                }
+            }
+        }
+        
+        return projects;
     }
 
     getItemText(project: any): string {
@@ -494,7 +531,7 @@ class ProjectSuggestModal extends FuzzySuggestModal<any> {
         }
 
         if (tasks && tasks.length > 0) {
-            new TaskSuggestModal(this.app, this.plugin, project, tasks).open();
+            new TaskSuggestModal(this.app, this.plugin, project, tasks, this.activeFile).open();
         } else {
             new Notice('No tasks found for this project.');
         }
@@ -505,16 +542,36 @@ class TaskSuggestModal extends FuzzySuggestModal<any> {
     plugin: HarvestPlugin;
     project: any;
     tasks: any[];
+    activeFile: TFile | null;
 
-    constructor(app: App, plugin: HarvestPlugin, project: any, tasks: any[]) {
+    constructor(app: App, plugin: HarvestPlugin, project: any, tasks: any[], activeFile: TFile | null) {
         super(app);
         this.plugin = plugin;
         this.project = project;
         this.tasks = tasks;
+        this.activeFile = activeFile;
     }
 
     getItems(): any[] {
-        return this.tasks;
+        let tasks = [...this.tasks]; // Create a mutable copy
+
+        if (this.activeFile && this.activeFile.parent) {
+            const folderPath = this.activeFile.parent.path;
+            const cachedInfo = this.plugin.settings.folderProjectCache[folderPath];
+
+            // Check if the cache is for the currently selected project
+            if (cachedInfo && cachedInfo.projectId === this.project.id) {
+                const cachedTaskIndex = tasks.findIndex(t => t.task.id === cachedInfo.taskId);
+                
+                if (cachedTaskIndex > -1) {
+                    // Move the cached task to the front of the list to pre-select it
+                    const cachedTask = tasks.splice(cachedTaskIndex, 1)[0];
+                    tasks.unshift(cachedTask);
+                }
+            }
+        }
+        
+        return tasks;
     }
 
     getItemText(taskAssignment: any): string {
@@ -526,7 +583,7 @@ class TaskSuggestModal extends FuzzySuggestModal<any> {
     }
 
     onChooseItem(taskAssignment: any) {
-        this.plugin.startTimer(this.project.id, taskAssignment.task.id);
+        this.plugin.startTimer(this.project.id, taskAssignment.task.id, this.activeFile);
     }
 }
 
