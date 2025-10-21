@@ -1,4 +1,4 @@
-# Obsidian Harvest Integration
+# Obsidian Harvest integration
 
 ![GitHub license](https://img.shields.io/github/license/nwbort/obsidian-harvest)
 
@@ -6,28 +6,28 @@ Integrates [Harvest](https://www.getharvest.com/) time tracking directly into yo
 
 ## Features
 
-*   **Status Bar Integration:** See your currently running Harvest timer, including the project, task, and duration, right in the Obsidian status bar.
-*   **Start & Stop Timers:** Use Obsidian's command palette to quickly start and stop your timers.
-*   **Time Reports:** Generate and view reports of your time entries directly within your notes using a simple query language.
+*   **Status bar integration:** See your currently running Harvest timer, including the project, task, and duration, right in the Obsidian status bar.
+*   **Start & stop timers:** Use Obsidian's command palette to quickly start and stop your timers.
+*   **Time reports:** Generate and view reports of your time entries directly within your notes using a simple query language.
 
-## How to Install
+## How to install
 
-### From the Community Plugins Tab in Obsidian
+### From the Community plugins tab in Obsidian
 
-1.  Go to `Settings` -> `Community Plugins`.
+1.  Go to `Settings` -> `Community plugins`.
 2.  Make sure "Safe mode" is turned **off**.
 3.  Click `Browse` and search for "Harvest".
 4.  Click `Install`.
 5.  Once installed, find the plugin in your list and `Enable` it.
 
-### Manual Installation
+### Manual installation
 
 1.  Download the `main.js`, `manifest.json` from the [latest release](https://github.com/nwbort/obsidian-harvest/releases).
 2.  Navigate to your Obsidian vault's plugin folder: `<YourVault>/.obsidian/plugins/`.
-3.  Create a new folder named `obsidian-harvest`.
+3.  Create a new folder named `harvest`.
 4.  Move the downloaded files into this new folder.
 5.  Reload Obsidian.
-6.  Go to `Settings` -> `Community Plugins`, find "Harvest", and enable it.
+6.  Go to `Settings` -> `Community plugins`, find "Harvest", and enable it.
 
 ## How to Use
 
@@ -58,15 +58,15 @@ Access these commands through the command palette (`Ctrl/Cmd + P`):
 *   **Refresh Harvest Projects:**
     *   Use this command to manually update the list of projects from your Harvest account.
 
-### 3. Rendering Time Reports with HQL
+### 3. Rendering time reports with HQL
 
 You can render time tracking reports directly inside your notes using `harvest` code blocks. This uses a simple Harvest Query Language (HQL).
 
-#### How it Works
+#### How it works
 
 Create a code block with the language identifier `harvest`.
 
-**List Report**
+**List report**
 
 To get a list of your time entries for a specific period:
 
@@ -82,7 +82,7 @@ LIST PAST 7 DAYS
 ```
 ````
 
-**Summary Report**
+**Summary report**
 
 To get a summary of hours tracked per project for a specific period:
 
@@ -98,13 +98,13 @@ SUMMARY FROM 2025-01-01 TO 2025-01-31
 ```
 ````
 
-#### Supported Syntax
+#### Supported syntax
 
-**Query Types:**
+**Query types:**
 *   `LIST`: Shows a detailed list of individual time entries.
 *   `SUMMARY`: Shows total hours and a breakdown by project.
 
-**Time Ranges:**
+**Time ranges:**
 *   `TODAY`
 *   `WEEK` (This week, Monday to Sunday)
 *   `MONTH` (This calendar month)
@@ -112,11 +112,11 @@ SUMMARY FROM 2025-01-01 TO 2025-01-31
 *   `FROM <YYYY-MM-DD> TO <YYYY-MM-DD>`
 
 
-### 4. Status Bar
+### 4. Status bar
 
 The status bar item at the bottom of your Obsidian window provides at-a-glance information:
-*   **No Timer Running:** Displays "Harvest: No timer running".
-*   **Timer Active:** Displays the format `Harvest: <Project Name> - <Task Name> (X.XXh)`. This will update periodically based on your polling interval settings.
+*   **No timer running:** Displays "Harvest: No timer running".
+*   **Timer active:** Displays the format `Harvest: <Project Name> - <Task Name> (X.XXh)`. This will update periodically based on your polling interval settings.
 
 ## Settings
 
