@@ -1,6 +1,167 @@
 import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, Setting, MarkdownPostProcessorContext, requestUrl, TFile } from 'obsidian';
 
-// --- TYPES ---
+// --- HARVEST API TYPES ---
+
+interface HarvestClient {
+    id: number;
+    name: string;
+    currency: string;
+}
+
+interface HarvestUser {
+    id: number;
+    name: string;
+}
+
+interface HarvestProject {
+    id: number;
+    name: string;
+    code: string;
+}
+
+interface HarvestTask {
+    id: number;
+    name: string;
+}
+
+interface HarvestUserAssignment {
+    id: number;
+    is_project_manager: boolean;
+    is_active: boolean;
+    use_default_rates: boolean;
+    budget: number | null;
+    created_at: string;
+    updated_at: string;
+    hourly_rate: number | null;
+}
+
+interface HarvestTaskAssignment {
+    id: number;
+    billable: boolean;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    hourly_rate: number | null;
+    budget: number | null;
+    task: HarvestTask;
+}
+
+interface HarvestTimeEntry {
+    id: number;
+    spent_date: string;
+    hours: number;
+    hours_without_timer: number;
+    rounded_hours: number;
+    notes: string;
+    is_locked: boolean;
+    locked_reason: string | null;
+    approval_status: string;
+    is_closed: boolean;
+    is_billed: boolean;
+    timer_started_at: string | null;
+    started_time: string | null;
+    ended_time: string | null;
+    is_running: boolean;
+    billable: boolean;
+    budgeted: boolean;
+    billable_rate: number | null;
+    cost_rate: number | null;
+    created_at: string;
+    updated_at: string;
+    user: HarvestUser;
+    client: HarvestClient;
+    project: HarvestProject;
+    task: HarvestTask;
+    user_assignment: HarvestUserAssignment;
+    task_assignment: Omit<HarvestTaskAssignment, 'task'>;
+    invoice: unknown | null;
+    external_reference: unknown | null;
+}
+
+interface HarvestProjectFull {
+    id: number;
+    name: string;
+    code: string;
+    is_active: boolean;
+    is_billable: boolean;
+    is_fixed_fee: boolean;
+    bill_by: string;
+    budget: number | null;
+    budget_by: string;
+    budget_is_monthly: boolean;
+    notify_when_over_budget: boolean;
+    over_budget_notification_percentage: number;
+    show_budget_to_all: boolean;
+    created_at: string;
+    updated_at: string;
+    starts_on: string;
+    ends_on: string | null;
+    over_budget_notification_date: string | null;
+    notes: string | null;
+    cost_budget: number | null;
+    cost_budget_include_expenses: boolean;
+    hourly_rate: number | null;
+    fee: number | null;
+    client: HarvestClient;
+    task_assignments?: HarvestTaskAssignment[];
+}
+
+interface HarvestTimeEntriesResponse {
+    time_entries: HarvestTimeEntry[];
+    per_page: number;
+    total_pages: number;
+    total_entries: number;
+    next_page: number | null;
+    previous_page: number | null;
+    page: number;
+    links: {
+        first: string;
+        next: string | null;
+        previous: string | null;
+        last: string;
+    };
+}
+
+interface HarvestProjectsResponse {
+    projects: HarvestProjectFull[];
+    per_page: number;
+    total_pages: number;
+    total_entries: number;
+    next_page: number | null;
+    previous_page: number | null;
+    page: number;
+    links: {
+        first: string;
+        next: string | null;
+        previous: string | null;
+        last: string;
+    };
+}
+
+interface HarvestTaskAssignmentsResponse {
+    task_assignments: HarvestTaskAssignment[];
+    per_page: number;
+    total_pages: number;
+    total_entries: number;
+    next_page: number | null;
+    previous_page: number | null;
+    page: number;
+    links: {
+        first: string;
+        next: string | null;
+        previous: string | null;
+        last: string;
+    };
+}
+
+interface HarvestCurrentUser {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+}
+
+// --- PLUGIN TYPES ---
 
 // Stores the last used project/task for a given folder path.
 interface FolderProjectCache {
@@ -10,7 +171,7 @@ interface FolderProjectCache {
     };
 }
 
-// --- HQL (Harvest Query Language) TYPES ---
+// --- HQL TYPES ---
 type ISODate = string;
 
 enum QueryType {
@@ -86,7 +247,7 @@ function parseTimeRange(tokens: string[]): { from: ISODate, to: ISODate } {
 }
 
 // --- HQL RENDERER ---
-function renderReport(container: HTMLElement, entries: any[], query: HarvestQuery) {
+function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query: HarvestQuery) {
     container.empty();
     const wrapper = container.createDiv({ cls: 'harvest-report' });
 
@@ -102,7 +263,7 @@ function renderReport(container: HTMLElement, entries: any[], query: HarvestQuer
     }
 }
 
-function renderList(container: HTMLElement, entries: any[]) {
+function renderList(container: HTMLElement, entries: HarvestTimeEntry[]) {
     const table = container.createEl('table', { cls: 'harvest-table' });
     const thead = table.createTHead();
     const headerRow = thead.insertRow();
@@ -121,7 +282,7 @@ function renderList(container: HTMLElement, entries: any[]) {
     }
 }
 
-function renderSummary(container: HTMLElement, entries: any[]) {
+function renderSummary(container: HTMLElement, entries: HarvestTimeEntry[]) {
     let totalHours = 0;
     const projectTotals: { [key: string]: number } = {};
 
@@ -218,9 +379,9 @@ const DEFAULT_SETTINGS: HarvestPluginSettings = {
 export default class HarvestPlugin extends Plugin {
     settings: HarvestPluginSettings;
     statusBarItemEl: HTMLElement;
-    runningTimer: any = null;
+    runningTimer: HarvestTimeEntry | null = null;
     timerInterval: number;
-    projectCache: any[] = []; // Cache for the combined project list
+    projectCache: HarvestProjectFull[] = []; // Cache for the combined project list
     userId: number | null = null;
 
     async onload() {
@@ -307,7 +468,11 @@ export default class HarvestPlugin extends Plugin {
         await this.saveData(this.settings);
     }
 
-    async request(endpoint: string, method: string = 'GET', body: any = null) {
+    async request<T = unknown>(
+        endpoint: string, 
+        method: string = 'GET', 
+        body: Record<string, unknown> | null = null
+    ): Promise<T | null> {
         if (!this.settings.personalAccessToken || !this.settings.accountId) {
             new Notice('Harvest API credentials are not set.');
             return null;
@@ -330,7 +495,7 @@ export default class HarvestPlugin extends Plugin {
                 new Notice(`Harvest API error: ${response.json.message || response.status}`);
                 return null;
             }
-            return response.json;
+            return response.json as T;
         } catch (error) {
             new Notice('Failed to connect to Harvest API.');
             console.error('Harvest API request error:', error);
@@ -339,7 +504,7 @@ export default class HarvestPlugin extends Plugin {
     }
 
     async fetchCurrentUserId() {
-        const me = await this.request('/users/me');
+        const me = await this.request<HarvestCurrentUser>('/users/me');
         if (me && me.id) {
             this.userId = me.id;
         } else {
@@ -349,27 +514,27 @@ export default class HarvestPlugin extends Plugin {
         }
     }
     
-    async getTimeEntries(query: HarvestQuery): Promise<any[]> {
+    async getTimeEntries(query: HarvestQuery): Promise<HarvestTimeEntry[]> {
         if (!this.userId) {
             new Notice('Harvest User ID not found. Cannot fetch your time entries.');
             return [];
         }
         const endpoint = `/time_entries?from=${query.from}&to=${query.to}&user_id=${this.userId}`;
-        const data = await this.request(endpoint);
+        const data = await this.request<HarvestTimeEntriesResponse>(endpoint);
         if (data && data.time_entries) {
             return data.time_entries;
         }
         return [];
     }
 
-    async fetchAllTrackableProjects(forceRefresh: boolean = false): Promise<any[]> {
+    async fetchAllTrackableProjects(forceRefresh: boolean = false): Promise<HarvestProjectFull[]> {
         if (this.projectCache.length > 0 && !forceRefresh) {
             return this.projectCache;
         }
 
         const managedProjects = await this.getManagedProjects();
         const recentProjects = await this.getRecentProjectsFromTimeEntries();
-        const combinedProjectMap = new Map<number, any>();
+        const combinedProjectMap = new Map<number, HarvestProjectFull>();
         managedProjects.forEach(proj => combinedProjectMap.set(proj.id, proj));
         recentProjects.forEach(proj => {
             if (!combinedProjectMap.has(proj.id)) {
@@ -381,12 +546,12 @@ export default class HarvestPlugin extends Plugin {
         return this.projectCache;
     }
 
-    async getManagedProjects(): Promise<any[]> {
-        let allProjects: any[] = [];
+    async getManagedProjects(): Promise<HarvestProjectFull[]> {
+        let allProjects: HarvestProjectFull[] = [];
         let page = 1;
         let totalPages = 1;
         do {
-            const data = await this.request(`/projects?is_active=true&page=${page}`);
+            const data = await this.request<HarvestProjectsResponse>(`/projects?is_active=true&page=${page}`);
             if (data && data.projects) {
                 allProjects = allProjects.concat(data.projects);
                 totalPages = data.total_pages;
@@ -396,17 +561,18 @@ export default class HarvestPlugin extends Plugin {
         return allProjects;
     }
 
-    async getRecentProjectsFromTimeEntries(): Promise<any[]> {
+    async getRecentProjectsFromTimeEntries(): Promise<HarvestProjectFull[]> {
         if (!this.userId) return [];
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
-        const data = await this.request(`/time_entries?from=${fromDate}&user_id=${this.userId}`);
+        const data = await this.request<HarvestTimeEntriesResponse>(`/time_entries?from=${fromDate}&user_id=${this.userId}`);
         if (!data || !data.time_entries) return [];
-        const recentProjectsMap = new Map<number, any>();
-        data.time_entries.forEach((entry: any) => {
+        const recentProjectsMap = new Map<number, HarvestProjectFull>();
+        data.time_entries.forEach((entry: HarvestTimeEntry) => {
             if (entry.project && !recentProjectsMap.has(entry.project.id)) {
-                recentProjectsMap.set(entry.project.id, entry.project);
+                // Convert the simplified project from time entry to HarvestProjectFull
+                recentProjectsMap.set(entry.project.id, entry.project as unknown as HarvestProjectFull);
             }
         });
         return Array.from(recentProjectsMap.values());
@@ -428,10 +594,10 @@ export default class HarvestPlugin extends Plugin {
 
         // Check for existing entry today for this project/task to restart it
         if (this.userId) {
-            const data = await this.request(`/time_entries?from=${spentDate}&to=${spentDate}&user_id=${this.userId}`);
+            const data = await this.request<HarvestTimeEntriesResponse>(`/time_entries?from=${spentDate}&to=${spentDate}&user_id=${this.userId}`);
             if (data && data.time_entries) {
                 const existingEntry = data.time_entries.find(
-                    (entry: any) => entry.project.id === projectId && entry.task.id === taskId
+                    (entry: HarvestTimeEntry) => entry.project.id === projectId && entry.task.id === taskId
                 );
                 
                 if (existingEntry) {
@@ -460,7 +626,7 @@ export default class HarvestPlugin extends Plugin {
 
     async updateRunningTimer() {
         if (!this.userId) return;
-        const data = await this.request(`/time_entries?is_running=true&user_id=${this.userId}`);
+        const data = await this.request<HarvestTimeEntriesResponse>(`/time_entries?is_running=true&user_id=${this.userId}`);
         if (data && data.time_entries && data.time_entries.length > 0) {
             this.runningTimer = data.time_entries[0];
             const { project, task, hours } = this.runningTimer;
@@ -482,7 +648,7 @@ export default class HarvestPlugin extends Plugin {
 
 // -- MODAL CLASSES --
 
-class ProjectSuggestModal extends FuzzySuggestModal<any> {
+class ProjectSuggestModal extends FuzzySuggestModal<HarvestProjectFull> {
     plugin: HarvestPlugin;
     activeFile: TFile | null;
 
@@ -492,7 +658,7 @@ class ProjectSuggestModal extends FuzzySuggestModal<any> {
         this.activeFile = activeFile;
     }
 
-    getItems(): any[] {
+    getItems(): HarvestProjectFull[] {
         let projects = [...this.plugin.projectCache]; // Create a mutable copy
         
         if (this.activeFile && this.activeFile.parent) {
@@ -513,20 +679,20 @@ class ProjectSuggestModal extends FuzzySuggestModal<any> {
         return projects;
     }
 
-    getItemText(project: any): string {
+    getItemText(project: HarvestProjectFull): string {
         return project.name;
     }
 
-    renderSuggestion(match: FuzzyMatch<any>, el: HTMLElement) {
+    renderSuggestion(match: FuzzyMatch<HarvestProjectFull>, el: HTMLElement) {
         const project = match.item;
         el.createEl('div', { text: project.name });
         el.createEl('small', { text: project.client?.name || 'No client' });
     }
 
-    async onChooseItem(project: any) {
+    async onChooseItem(project: HarvestProjectFull) {
         let tasks = project.task_assignments;
         if (!tasks) {
-            const data = await this.plugin.request(`/projects/${project.id}/task_assignments`);
+            const data = await this.plugin.request<HarvestTaskAssignmentsResponse>(`/projects/${project.id}/task_assignments`);
             tasks = data?.task_assignments;
         }
 
@@ -538,13 +704,13 @@ class ProjectSuggestModal extends FuzzySuggestModal<any> {
     }
 }
 
-class TaskSuggestModal extends FuzzySuggestModal<any> {
+class TaskSuggestModal extends FuzzySuggestModal<HarvestTaskAssignment> {
     plugin: HarvestPlugin;
-    project: any;
-    tasks: any[];
+    project: HarvestProjectFull;
+    tasks: HarvestTaskAssignment[];
     activeFile: TFile | null;
 
-    constructor(app: App, plugin: HarvestPlugin, project: any, tasks: any[], activeFile: TFile | null) {
+    constructor(app: App, plugin: HarvestPlugin, project: HarvestProjectFull, tasks: HarvestTaskAssignment[], activeFile: TFile | null) {
         super(app);
         this.plugin = plugin;
         this.project = project;
@@ -552,7 +718,7 @@ class TaskSuggestModal extends FuzzySuggestModal<any> {
         this.activeFile = activeFile;
     }
 
-    getItems(): any[] {
+    getItems(): HarvestTaskAssignment[] {
         let tasks = [...this.tasks]; // Create a mutable copy
 
         if (this.activeFile && this.activeFile.parent) {
@@ -574,15 +740,15 @@ class TaskSuggestModal extends FuzzySuggestModal<any> {
         return tasks;
     }
 
-    getItemText(taskAssignment: any): string {
+    getItemText(taskAssignment: HarvestTaskAssignment): string {
         return taskAssignment.task.name;
     }
     
-    renderSuggestion(match: FuzzyMatch<any>, el: HTMLElement) {
+    renderSuggestion(match: FuzzyMatch<HarvestTaskAssignment>, el: HTMLElement) {
         el.createEl("div", { text: match.item.task.name });
     }
 
-    onChooseItem(taskAssignment: any) {
+    onChooseItem(taskAssignment: HarvestTaskAssignment) {
         this.plugin.startTimer(this.project.id, taskAssignment.task.id, this.activeFile);
     }
 }
