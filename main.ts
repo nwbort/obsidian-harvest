@@ -389,6 +389,8 @@ export default class HarvestPlugin extends Plugin {
 
         this.statusBarItemEl = this.addStatusBarItem();
         this.statusBarItemEl.setText('Harvest');
+        this.statusBarItemEl.addClass('mod-clickable');
+        this.statusBarItemEl.addEventListener('click', () => this.toggleTimer());
 
         this.addSettingTab(new HarvestSettingTab(this.app, this));
 
@@ -423,14 +425,7 @@ export default class HarvestPlugin extends Plugin {
             id: 'toggle-harvest-timer',
             name: 'Toggle timer',
             callback: async () => {
-                await this.updateRunningTimer();
-                if (this.runningTimer) {
-                    new Notice('Stopping timer...');
-                    await this.stopTimer(this.runningTimer.id);
-                } else {
-                    new Notice('No timer running. Starting a new one...');
-                    new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
-                }
+                await this.toggleTimer();
             }
         });
 
@@ -642,6 +637,17 @@ export default class HarvestPlugin extends Plugin {
         if (result) {
             new Notice('Timer stopped.');
             this.updateRunningTimer();
+        }
+    }
+
+    async toggleTimer() {
+        await this.updateRunningTimer();
+        if (this.runningTimer) {
+            new Notice('Stopping timer...');
+            await this.stopTimer(this.runningTimer.id);
+        } else {
+            new Notice('No timer running. Starting a new one...');
+            new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
         }
     }
 }
