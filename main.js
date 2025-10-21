@@ -189,6 +189,8 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     await this.loadSettings();
     this.statusBarItemEl = this.addStatusBarItem();
     this.statusBarItemEl.setText("Harvest");
+    this.statusBarItemEl.addClass("mod-clickable");
+    this.statusBarItemEl.addEventListener("click", () => this.toggleTimer());
     this.addSettingTab(new HarvestSettingTab(this.app, this));
     if (this.settings.personalAccessToken && this.settings.accountId) {
       await this.fetchCurrentUserId();
@@ -216,14 +218,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       id: "toggle-harvest-timer",
       name: "Toggle timer",
       callback: async () => {
-        await this.updateRunningTimer();
-        if (this.runningTimer) {
-          new import_obsidian.Notice("Stopping timer...");
-          await this.stopTimer(this.runningTimer.id);
-        } else {
-          new import_obsidian.Notice("No timer running. Starting a new one...");
-          new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
-        }
+        await this.toggleTimer();
       }
     });
     this.addCommand({
@@ -408,6 +403,16 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     if (result) {
       new import_obsidian.Notice("Timer stopped.");
       this.updateRunningTimer();
+    }
+  }
+  async toggleTimer() {
+    await this.updateRunningTimer();
+    if (this.runningTimer) {
+      new import_obsidian.Notice("Stopping timer...");
+      await this.stopTimer(this.runningTimer.id);
+    } else {
+      new import_obsidian.Notice("No timer running. Starting a new one...");
+      new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
     }
   }
 };
