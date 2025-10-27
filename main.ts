@@ -356,20 +356,39 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
                 return;
             }
 
+            const now = new Date();
+            const generatedAt = now.toLocaleString();
+
             const tempDiv = document.createElement('div');
             renderReport(tempDiv, entries, query);
             const reportHTML = tempDiv.innerHTML;
 
+            const codeBlockForClipboard = `\`\`\`harvest\n${source.trim()}\n\`\`\``;
+
+            const onclickScript = `
+                const button = this;
+                navigator.clipboard.writeText(${JSON.stringify(codeBlockForClipboard)}).then(() => {
+                    button.innerText = 'Copied to clipboard!';
+                    setTimeout(() => { button.innerText = 'Undo (Copy Query)'; }, 2000);
+                }).catch(err => {
+                    console.error('Obsidian Harvest: Failed to copy.', err);
+                });
+            `.replace(/\n\s*/g, ''); // Minify the script for the HTML attribute
+
             const replacementText = `<div class="harvest-static-container">
-<details>
-<summary>View static query</summary>
-<pre><code>${source}</code></pre>
-</details>
+<p style="margin-bottom: 8px;"><em>Generated on: ${generatedAt}</em></p>
 ${reportHTML}
+<details style="margin-top: 16px;">
+<summary>View original query</summary>
+<div style="padding-top: 8px;">
+<pre><code>${source}</code></pre>
+<button onclick="${onclickScript}">Undo (copy query)</button>
+<p style="font-size: var(--font-ui-smaller); margin-top: 4px;"><em>Clicking the button copies the original query to your clipboard. You can then paste it to replace this static report.</em></p>
+</div>
+</details>
 </div>`;
 
             const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-
             if (!(file instanceof TFile)) {
                 el.setText('Error: Could not find file to write static report.');
                 return;
