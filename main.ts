@@ -341,9 +341,60 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
     ctx: MarkdownPostProcessorContext
 ) => {
     try {
-        const query = parseQuery(source);
+        const hasStaticFlag = source.includes('--static');
+        const querySource = source.replace('--static', '').trim();
+
+        const query = parseQuery(querySource);
         if (!query) return;
 
+        if (hasStaticFlag) {
+            el.setText('Loading static Harvest report...');
+
+            const entries = await plugin.getTimeEntries(query);
+            if (!entries) {
+                el.setText('Failed to fetch Harvest report.');
+                return;
+            }
+
+            const tempDiv = document.createElement('div');
+            renderReport(tempDiv, entries, query);
+            const reportHTML = tempDiv.innerHTML;
+
+            const replacementText = `<div class="harvest-static-container">
+<details>
+<summary>View static query</summary>
+<pre><code>${source}</code></pre>
+</details>
+${reportHTML}
+</div>`;
+
+            const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+
+            if (!(file instanceof TFile)) {
+                el.setText('Error: Could not find file to write static report.');
+                return;
+            }
+
+            const section = ctx.getSectionInfo(el);
+            if (!section) {
+                el.setText('Error: Could not read file section to write static report.');
+                return;
+            }
+
+            const fileContent = await plugin.app.vault.read(file);
+            const lines = fileContent.split('\n');
+            
+            const newLines = [
+                ...lines.slice(0, section.lineStart),
+                replacementText,
+                ...lines.slice(section.lineEnd + 1)
+            ];
+            
+            await plugin.app.vault.modify(file, newLines.join('\n'));
+            return;
+        }
+
+        // Original dynamic logic
         el.setText('Loading Harvest report...');
 
         const entries = await plugin.getTimeEntries(query);
