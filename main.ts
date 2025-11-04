@@ -74,8 +74,8 @@ interface HarvestTimeEntry {
     task: HarvestTask;
     user_assignment: HarvestUserAssignment;
     task_assignment: Omit<HarvestTaskAssignment, 'task'>;
-    invoice: unknown | null;
-    external_reference: unknown | null;
+    invoice: string | null;
+    external_reference: string | null;
 }
 
 interface HarvestProjectFull {
@@ -192,7 +192,7 @@ function parseQuery(source: string): HarvestQuery {
 
     const type = tokens[0] as QueryType;
     if (type !== QueryType.LIST && type !== QueryType.SUMMARY) {
-        throw new Error(`Invalid query type: ${type}. Must be LIST or SUMMARY.`);
+        throw new Error(`Invalid query type: ${type as string}. Must be LIST or SUMMARY.`);
     }
 
     const { from, to } = parseTimeRange(tokens.slice(1));
@@ -217,28 +217,31 @@ function parseTimeRange(tokens: string[]): { from: ISODate, to: ISODate } {
             from = today;
             to = today;
             break;
-        case 'WEEK':
+        case 'WEEK': {
             const dayOfWeek = today.getDay();
-            const firstDayOfWeek = new Date(today.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1))); // Monday as first day
+            const firstDayOfWeek = new Date(today.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)));
             from = firstDayOfWeek;
             to = new Date(new Date(firstDayOfWeek).setDate(firstDayOfWeek.getDate() + 6));
             break;
+        }
         case 'MONTH':
             from = new Date(today.getFullYear(), today.getMonth(), 1);
             to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             break;
-        case 'PAST':
+        case 'PAST': {
             const count = parseInt(tokens[1]);
             if (isNaN(count) || tokens[2] !== 'DAYS') throw new Error("Invalid PAST format. Use 'PAST <number> DAYS'.");
             to = today;
             from = new Date(new Date().setDate(today.getDate() - (count - 1)));
             break;
-        case 'FROM':
+        }
+        case 'FROM': {
             if (tokens.length < 4 || tokens[2] !== 'TO') throw new Error("Invalid FROM...TO format.");
             from = new Date(tokens[1]);
             to = new Date(tokens[3]);
             if (isNaN(from.getTime()) || isNaN(to.getTime())) throw new Error("Invalid date format in FROM...TO. Use YYYY-MM-DD.");
             break;
+        }
         default:
             throw new Error(`Unknown time range specifier: ${tokens[0]}`);
     }
@@ -390,7 +393,7 @@ export default class HarvestPlugin extends Plugin {
         this.statusBarItemEl = this.addStatusBarItem();
         this.statusBarItemEl.setText('Harvest');
         this.statusBarItemEl.addClass('mod-clickable');
-        this.statusBarItemEl.addEventListener('click', () => this.toggleTimer());
+        this.statusBarItemEl.addEventListener('click', () => void this.toggleTimer());
 
         this.addSettingTab(new HarvestSettingTab(this.app, this));
 
@@ -399,18 +402,18 @@ export default class HarvestPlugin extends Plugin {
         }
 
         // Warm up the project cache on startup
-        this.fetchAllTrackableProjects();
+        void this.fetchAllTrackableProjects();
 
         this.addCommand({
-            id: 'start-harvest-timer',
+            id: 'start-timer',
             name: 'Start timer',
             callback: () => {
-                new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
+                void new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
             }
         });
 
         this.addCommand({
-            id: 'stop-harvest-timer',
+            id: 'stop-timer',
             name: 'Stop timer',
             callback: async () => {
                 if (this.runningTimer) {
@@ -422,7 +425,7 @@ export default class HarvestPlugin extends Plugin {
         });
 
         this.addCommand({
-            id: 'toggle-harvest-timer',
+            id: 'toggle-timer',
             name: 'Toggle timer',
             callback: async () => {
                 await this.toggleTimer();
@@ -430,7 +433,7 @@ export default class HarvestPlugin extends Plugin {
         });
 
         this.addCommand({
-            id: 'refresh-harvest-projects',
+            id: 'refresh-projects',
             name: 'Refresh projects',
             callback: async () => {
                 new Notice('Refreshing project list from Harvest...');
@@ -444,9 +447,9 @@ export default class HarvestPlugin extends Plugin {
 
         // Use the polling interval from settings
         const pollingMinutes = this.settings.pollingInterval > 0 ? this.settings.pollingInterval : 5;
-        this.timerInterval = window.setInterval(() => this.updateRunningTimer(), pollingMinutes * 60 * 1000);
+        this.timerInterval = window.setInterval(() => void this.updateRunningTimer(), pollingMinutes * 60 * 1000);
         
-        this.updateRunningTimer();
+        void this.updateRunningTimer();
     }
 
     onunload() {
@@ -504,14 +507,14 @@ export default class HarvestPlugin extends Plugin {
             this.userId = me.id;
         } else {
             this.userId = null;
-            new Notice('Could not retrieve Harvest User ID.');
-            console.error('Failed to fetch Harvest User ID.');
+            new Notice('Could not retrieve Harvest user ID.');
+            console.error('Failed to fetch Harvest user ID.');
         }
     }
     
     async getTimeEntries(query: HarvestQuery): Promise<HarvestTimeEntry[]> {
         if (!this.userId) {
-            new Notice('Harvest User ID not found. Cannot fetch your time entries.');
+            new Notice('Harvest user ID not found. Cannot fetch your time entries.');
             return [];
         }
         const endpoint = `/time_entries?from=${query.from}&to=${query.to}&user_id=${this.userId}`;
@@ -599,7 +602,7 @@ export default class HarvestPlugin extends Plugin {
                     const result = await this.request(`/time_entries/${existingEntry.id}/restart`, 'PATCH');
                     if (result) {
                         new Notice('Timer restarted!');
-                        this.updateRunningTimer();
+                        void this.updateRunningTimer();
                     }
                     return;
                 }
@@ -615,7 +618,7 @@ export default class HarvestPlugin extends Plugin {
         const result = await this.request('/time_entries', 'POST', body);
         if (result) {
             new Notice('Timer started!');
-            this.updateRunningTimer();
+            void this.updateRunningTimer();
         }
     }
 
@@ -636,7 +639,7 @@ export default class HarvestPlugin extends Plugin {
         const result = await this.request(`/time_entries/${timerId}/stop`, 'PATCH');
         if (result) {
             new Notice('Timer stopped.');
-            this.updateRunningTimer();
+            void this.updateRunningTimer();
         }
     }
 
@@ -695,7 +698,11 @@ class ProjectSuggestModal extends FuzzySuggestModal<HarvestProjectFull> {
         el.createEl('small', { text: project.client?.name || 'No client' });
     }
 
-    async onChooseItem(project: HarvestProjectFull) {
+    onChooseItem(project: HarvestProjectFull) {
+        void this.handleProjectChoice(project);
+    }
+
+    private async handleProjectChoice(project: HarvestProjectFull) {
         let tasks = project.task_assignments;
         if (!tasks) {
             const data = await this.plugin.request<HarvestTaskAssignmentsResponse>(`/projects/${project.id}/task_assignments`);
@@ -755,7 +762,7 @@ class TaskSuggestModal extends FuzzySuggestModal<HarvestTaskAssignment> {
     }
 
     onChooseItem(taskAssignment: HarvestTaskAssignment) {
-        this.plugin.startTimer(this.project.id, taskAssignment.task.id, this.activeFile);
+        void this.plugin.startTimer(this.project.id, taskAssignment.task.id, this.activeFile);
     }
 }
 
@@ -770,10 +777,10 @@ class HarvestSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
-        new Setting(containerEl).setName('Harvest integration settings').setHeading();
+        new Setting(containerEl).setName('Credentials').setHeading();
         new Setting(containerEl)
             .setName('Personal access token')
-            .setDesc('Get this from the Developers section of your Harvest ID.')
+            .setDesc('Get this from the developers section of your Harvest ID.')
             .addText(text => text.setPlaceholder('Enter your token').setValue(this.plugin.settings.personalAccessToken)
                 .onChange(async (value) => {
                     this.plugin.settings.personalAccessToken = value;
@@ -785,7 +792,7 @@ class HarvestSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Account ID')
             .setDesc('You can also find this on the same page as your token.')
-            .addText(text => text.setPlaceholder('Enter your Account ID').setValue(this.plugin.settings.accountId)
+            .addText(text => text.setPlaceholder('Enter your account ID').setValue(this.plugin.settings.accountId)
                 .onChange(async (value) => {
                     this.plugin.settings.accountId = value;
                     await this.plugin.saveSettings();
@@ -793,6 +800,7 @@ class HarvestSettingTab extends PluginSettingTab {
                         await this.plugin.fetchCurrentUserId();
                     }
                 }));
+        new Setting(containerEl).setName('Configuration').setHeading();
         new Setting(containerEl)
             .setName('Polling interval')
             .setDesc('How often to check for a running timer, in minutes. Requires a reload to take effect.')
