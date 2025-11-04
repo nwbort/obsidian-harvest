@@ -54,24 +54,26 @@ function parseTimeRange(tokens) {
       from = today;
       to = today;
       break;
-    case "WEEK":
+    case "WEEK": {
       const dayOfWeek = today.getDay();
       const firstDayOfWeek = new Date(today.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)));
       from = firstDayOfWeek;
       to = new Date(new Date(firstDayOfWeek).setDate(firstDayOfWeek.getDate() + 6));
       break;
+    }
     case "MONTH":
       from = new Date(today.getFullYear(), today.getMonth(), 1);
       to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       break;
-    case "PAST":
+    case "PAST": {
       const count = parseInt(tokens[1]);
       if (isNaN(count) || tokens[2] !== "DAYS")
         throw new Error("Invalid PAST format. Use 'PAST <number> DAYS'.");
       to = today;
       from = new Date(new Date().setDate(today.getDate() - (count - 1)));
       break;
-    case "FROM":
+    }
+    case "FROM": {
       if (tokens.length < 4 || tokens[2] !== "TO")
         throw new Error("Invalid FROM...TO format.");
       from = new Date(tokens[1]);
@@ -79,6 +81,7 @@ function parseTimeRange(tokens) {
       if (isNaN(from.getTime()) || isNaN(to.getTime()))
         throw new Error("Invalid date format in FROM...TO. Use YYYY-MM-DD.");
       break;
+    }
     default:
       throw new Error(`Unknown time range specifier: ${tokens[0]}`);
   }
@@ -190,21 +193,21 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     this.statusBarItemEl = this.addStatusBarItem();
     this.statusBarItemEl.setText("Harvest");
     this.statusBarItemEl.addClass("mod-clickable");
-    this.statusBarItemEl.addEventListener("click", () => this.toggleTimer());
+    this.statusBarItemEl.addEventListener("click", () => void this.toggleTimer());
     this.addSettingTab(new HarvestSettingTab(this.app, this));
     if (this.settings.personalAccessToken && this.settings.accountId) {
       await this.fetchCurrentUserId();
     }
-    this.fetchAllTrackableProjects();
+    void this.fetchAllTrackableProjects();
     this.addCommand({
-      id: "start-harvest-timer",
+      id: "start-timer",
       name: "Start timer",
       callback: () => {
-        new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
+        void new ProjectSuggestModal(this.app, this, this.app.workspace.getActiveFile()).open();
       }
     });
     this.addCommand({
-      id: "stop-harvest-timer",
+      id: "stop-timer",
       name: "Stop timer",
       callback: async () => {
         if (this.runningTimer) {
@@ -215,14 +218,14 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       }
     });
     this.addCommand({
-      id: "toggle-harvest-timer",
+      id: "toggle-timer",
       name: "Toggle timer",
       callback: async () => {
         await this.toggleTimer();
       }
     });
     this.addCommand({
-      id: "refresh-harvest-projects",
+      id: "refresh-projects",
       name: "Refresh projects",
       callback: async () => {
         new import_obsidian.Notice("Refreshing project list from Harvest...");
@@ -232,8 +235,8 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     });
     this.registerMarkdownCodeBlockProcessor("harvest", hqlProcessor(this));
     const pollingMinutes = this.settings.pollingInterval > 0 ? this.settings.pollingInterval : 5;
-    this.timerInterval = window.setInterval(() => this.updateRunningTimer(), pollingMinutes * 60 * 1e3);
-    this.updateRunningTimer();
+    this.timerInterval = window.setInterval(() => void this.updateRunningTimer(), pollingMinutes * 60 * 1e3);
+    void this.updateRunningTimer();
   }
   onunload() {
     if (this.timerInterval) {
@@ -281,13 +284,13 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
       this.userId = me.id;
     } else {
       this.userId = null;
-      new import_obsidian.Notice("Could not retrieve Harvest User ID.");
-      console.error("Failed to fetch Harvest User ID.");
+      new import_obsidian.Notice("Could not retrieve Harvest user ID.");
+      console.error("Failed to fetch Harvest user ID.");
     }
   }
   async getTimeEntries(query) {
     if (!this.userId) {
-      new import_obsidian.Notice("Harvest User ID not found. Cannot fetch your time entries.");
+      new import_obsidian.Notice("Harvest user ID not found. Cannot fetch your time entries.");
       return [];
     }
     const endpoint = `/time_entries?from=${query.from}&to=${query.to}&user_id=${this.userId}`;
@@ -368,7 +371,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
           const result2 = await this.request(`/time_entries/${existingEntry.id}/restart`, "PATCH");
           if (result2) {
             new import_obsidian.Notice("Timer restarted!");
-            this.updateRunningTimer();
+            void this.updateRunningTimer();
           }
           return;
         }
@@ -382,7 +385,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     const result = await this.request("/time_entries", "POST", body);
     if (result) {
       new import_obsidian.Notice("Timer started!");
-      this.updateRunningTimer();
+      void this.updateRunningTimer();
     }
   }
   async updateRunningTimer() {
@@ -402,7 +405,7 @@ var HarvestPlugin = class extends import_obsidian.Plugin {
     const result = await this.request(`/time_entries/${timerId}/stop`, "PATCH");
     if (result) {
       new import_obsidian.Notice("Timer stopped.");
-      this.updateRunningTimer();
+      void this.updateRunningTimer();
     }
   }
   async toggleTimer() {
@@ -446,7 +449,10 @@ var ProjectSuggestModal = class extends import_obsidian.FuzzySuggestModal {
     el.createEl("div", { text: project.name });
     el.createEl("small", { text: ((_a = project.client) == null ? void 0 : _a.name) || "No client" });
   }
-  async onChooseItem(project) {
+  onChooseItem(project) {
+    void this.handleProjectChoice(project);
+  }
+  async handleProjectChoice(project) {
     let tasks = project.task_assignments;
     if (!tasks) {
       const data = await this.plugin.request(`/projects/${project.id}/task_assignments`);
@@ -489,7 +495,7 @@ var TaskSuggestModal = class extends import_obsidian.FuzzySuggestModal {
     el.createEl("div", { text: match.item.task.name });
   }
   onChooseItem(taskAssignment) {
-    this.plugin.startTimer(this.project.id, taskAssignment.task.id, this.activeFile);
+    void this.plugin.startTimer(this.project.id, taskAssignment.task.id, this.activeFile);
   }
 };
 var HarvestSettingTab = class extends import_obsidian.PluginSettingTab {
@@ -500,21 +506,22 @@ var HarvestSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian.Setting(containerEl).setName("Harvest integration settings").setHeading();
-    new import_obsidian.Setting(containerEl).setName("Personal access token").setDesc("Get this from the Developers section of your Harvest ID.").addText((text) => text.setPlaceholder("Enter your token").setValue(this.plugin.settings.personalAccessToken).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("Credentials").setHeading();
+    new import_obsidian.Setting(containerEl).setName("Personal access token").setDesc("Get this from the developers section of your Harvest ID.").addText((text) => text.setPlaceholder("Enter your token").setValue(this.plugin.settings.personalAccessToken).onChange(async (value) => {
       this.plugin.settings.personalAccessToken = value;
       await this.plugin.saveSettings();
       if (this.plugin.settings.accountId) {
         await this.plugin.fetchCurrentUserId();
       }
     }));
-    new import_obsidian.Setting(containerEl).setName("Account ID").setDesc("You can also find this on the same page as your token.").addText((text) => text.setPlaceholder("Enter your Account ID").setValue(this.plugin.settings.accountId).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("Account ID").setDesc("You can also find this on the same page as your token.").addText((text) => text.setPlaceholder("Enter your account ID").setValue(this.plugin.settings.accountId).onChange(async (value) => {
       this.plugin.settings.accountId = value;
       await this.plugin.saveSettings();
       if (this.plugin.settings.personalAccessToken) {
         await this.plugin.fetchCurrentUserId();
       }
     }));
+    new import_obsidian.Setting(containerEl).setName("Configuration").setHeading();
     new import_obsidian.Setting(containerEl).setName("Polling interval").setDesc("How often to check for a running timer, in minutes. Requires a reload to take effect.").addText((text) => text.setPlaceholder("Default: 5").setValue(String(this.plugin.settings.pollingInterval)).onChange(async (value) => {
       const interval = parseInt(value);
       if (!isNaN(interval) && interval > 0) {
