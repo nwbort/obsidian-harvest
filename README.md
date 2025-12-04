@@ -2,7 +2,7 @@
 
 ![GitHub license](https://img.shields.io/github/license/nwbort/obsidian-harvest)
 
-Integrates [Harvest](https://www.getharvest.com/) time tracking directly into your [Obsidian.md](https://obsidian.md) workspace. Start, stop, and view your running timers without ever leaving your notes.
+Integrate [Harvest](https://www.getharvest.com/) time tracking directly into your [Obsidian.md](https://obsidian.md) workspace. Start, stop, and view your running timers without ever leaving your notes.
 
 ## Features
 
@@ -12,7 +12,7 @@ Integrates [Harvest](https://www.getharvest.com/) time tracking directly into yo
 
 ## How to install
 
-### From the Community plugins tab in Obsidian
+### From the Community plugins tab in Obsidian (coming soon)
 
 1.  Go to `Settings` -> `Community plugins`.
 2.  Make sure "Safe mode" is turned **off**.
@@ -48,14 +48,16 @@ Before you can use the plugin, you must configure your Harvest API credentials.
 
 Access these commands through the command palette (`Ctrl/Cmd + P`):
 
-*   **Start Harvest Timer:**
+*   **Start timer:**
     *   This command will open a modal to search for a project.
     *   After selecting a project, a second modal will appear to select a task.
     *   Once a task is chosen, the timer will start immediately.
-*   **Stop Harvest Timer:**
+*   **Stop timer:**
     *   If a timer is running, this command will stop it.
     *   A notification will confirm that the timer has been stopped.
-*   **Refresh Harvest Projects:**
+*   **Toggle timer:**
+    *   Run start/stop timer as appropriate.
+*   **Refresh projects:**
     *   Use this command to manually update the list of projects from your Harvest account.
 
 ### 3. Rendering time reports with HQL
