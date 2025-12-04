@@ -1,7 +1,6 @@
 import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, Setting, MarkdownPostProcessorContext, requestUrl, TFile } from 'obsidian';
 
 // --- HARVEST API TYPES ---
-
 interface HarvestClient {
     id: number;
     name: string;
@@ -162,8 +161,7 @@ interface HarvestCurrentUser {
 }
 
 // --- PLUGIN TYPES ---
-
-// Stores the last used project/task for a given folder path.
+// Stores the last used project/task for a given folder path to use as a default when starting a new timer.
 interface FolderProjectCache {
     [folderPath: string]: {
         projectId: number;
@@ -172,6 +170,7 @@ interface FolderProjectCache {
 }
 
 // --- HQL TYPES ---
+
 type ISODate = string;
 
 enum QueryType {
@@ -362,7 +361,7 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
 };
 
 
-// Define the structure for our plugin's settings
+// Settings interface
 interface HarvestPluginSettings {
     personalAccessToken: string;
     accountId: string;
@@ -370,11 +369,11 @@ interface HarvestPluginSettings {
     folderProjectCache: FolderProjectCache;
 }
 
-// Default settings to be used if none are saved
+// Default settings
 const DEFAULT_SETTINGS: HarvestPluginSettings = {
     personalAccessToken: '',
     accountId: '',
-    pollingInterval: 5, // Default to 5 minutes
+    pollingInterval: 5, // 5 minutes
     folderProjectCache: {}
 }
 
@@ -384,19 +383,23 @@ export default class HarvestPlugin extends Plugin {
     statusBarItemEl: HTMLElement;
     runningTimer: HarvestTimeEntry | null = null;
     timerInterval: number;
-    projectCache: HarvestProjectFull[] = []; // Cache for the combined project list
+    projectCache: HarvestProjectFull[] = [];
     userId: number | null = null;
 
     async onload() {
+        //Read in settings
         await this.loadSettings();
 
+        // Set up status bar
         this.statusBarItemEl = this.addStatusBarItem();
         this.statusBarItemEl.setText('Harvest');
         this.statusBarItemEl.addClass('mod-clickable');
         this.statusBarItemEl.addEventListener('click', () => void this.toggleTimer());
 
+        // Set up settings
         this.addSettingTab(new HarvestSettingTab(this.app, this));
 
+        // Initial loading of user and projects
         if (this.settings.personalAccessToken && this.settings.accountId) {
             await this.fetchCurrentUserId();
         }
@@ -526,10 +529,13 @@ export default class HarvestPlugin extends Plugin {
     }
 
     async fetchAllTrackableProjects(forceRefresh: boolean = false): Promise<HarvestProjectFull[]> {
+        // Return from cache unless refresh is forced
         if (this.projectCache.length > 0 && !forceRefresh) {
             return this.projectCache;
         }
 
+        // Get both managed projects and project in time entries. For projects where a user is not a manager,
+        // the only way to get a list of projects assigned to that user is through the time entries
         const managedProjects = await this.getManagedProjects();
         const recentProjects = await this.getRecentProjectsFromTimeEntries();
         const combinedProjectMap = new Map<number, HarvestProjectFull>();
@@ -577,7 +583,7 @@ export default class HarvestPlugin extends Plugin {
     }
     
     async startTimer(projectId: number, taskId: number, activeFile: TFile | null) {
-        // Save the selected project/task to the cache for the current folder
+        // Save the selected project/task to the cache for the current folder to use as future default
         if (activeFile && activeFile.parent) {
             const folderPath = activeFile.parent.path;
             this.settings.folderProjectCache[folderPath] = { projectId, taskId };
@@ -656,7 +662,6 @@ export default class HarvestPlugin extends Plugin {
 }
 
 // -- MODAL CLASSES --
-
 class ProjectSuggestModal extends FuzzySuggestModal<HarvestProjectFull> {
     plugin: HarvestPlugin;
     activeFile: TFile | null;
@@ -668,7 +673,7 @@ class ProjectSuggestModal extends FuzzySuggestModal<HarvestProjectFull> {
     }
 
     getItems(): HarvestProjectFull[] {
-        let projects = [...this.plugin.projectCache]; // Create a mutable copy
+        let projects = [...this.plugin.projectCache];
         
         if (this.activeFile && this.activeFile.parent) {
             const folderPath = this.activeFile.parent.path;
@@ -767,7 +772,6 @@ class TaskSuggestModal extends FuzzySuggestModal<HarvestTaskAssignment> {
 }
 
 // -- SETTINGS TAB CLASS --
-
 class HarvestSettingTab extends PluginSettingTab {
     plugin: HarvestPlugin;
     constructor(app: App, plugin: HarvestPlugin) {
