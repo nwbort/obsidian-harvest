@@ -22,26 +22,22 @@ jobs:
 
       - name: Create or Update Release Branch
         run: |
-          # Fetch the release branch if it exists, to ensure we have its history
+
           git fetch origin release || true
 
-          # Create or switch to the 'release' branch
-          # If 'release' exists, this switches to it. If not, it creates it based on main.
           git checkout -b release origin/release || git checkout -b release main
 
           # Remove the old files if they exist on the release branch
           git rm -f main.js manifest.json styles.css || true
 
           # Checkout files from the 'main' branch
-          git checkout main -- main.js manifest.json styles.css
+          git checkout main -- manifest.json styles.css
 
           # Add the updated files
-          git add main.js manifest.json styles.css
+          git add manifest.json styles.css
 
           # Check if there are any changes to commit
           git diff --quiet --exit-code --cached || git commit -m "Update files from main"
 
           # Push the 'release' branch to the remote repository.
-          # Use --force-with-lease to prevent accidental overwrites if someone else
-          # pushed to 'release' in the meantime.
           git push origin release --force-with-lease
