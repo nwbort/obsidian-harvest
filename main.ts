@@ -218,9 +218,9 @@ function parseTimeRange(tokens: string[]): { from: ISODate, to: ISODate } {
             break;
         case 'WEEK': {
             const dayOfWeek = today.getDay();
-            const firstDayOfWeek = new Date(today.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)));
-            from = firstDayOfWeek;
-            to = new Date(new Date(firstDayOfWeek).setDate(firstDayOfWeek.getDate() + 6));
+            const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            from = new Date(today.getFullYear(), today.getMonth(), today.getDate() + daysToMonday);
+            to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6);
             break;
         }
         case 'MONTH':

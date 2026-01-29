@@ -1,4 +1,4 @@
-# .github/workflows/release-branch.yml
+# .github/workflows/main.yml
 
 name: Update Release Branch
 
