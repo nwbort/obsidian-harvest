@@ -377,6 +377,13 @@ const DEFAULT_SETTINGS: HarvestPluginSettings = {
     folderProjectCache: {}
 }
 
+// Helper function to format decimal hours as h:mm
+function formatHoursMinutes(decimalHours: number): string {
+    const hours = Math.floor(decimalHours);
+    const minutes = Math.floor((decimalHours - hours) * 60);
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
+}
+
 // Main Plugin Class
 export default class HarvestPlugin extends Plugin {
     settings: HarvestPluginSettings;
@@ -634,7 +641,7 @@ export default class HarvestPlugin extends Plugin {
         if (data && data.time_entries && data.time_entries.length > 0) {
             this.runningTimer = data.time_entries[0];
             const { project, task, hours } = this.runningTimer;
-            this.statusBarItemEl.setText(`Harvest: ${project.name} - ${task.name} (${hours.toFixed(2)}h)`);
+            this.statusBarItemEl.setText(`Harvest: ${project.name} - ${task.name} (${formatHoursMinutes(hours)})`);
         } else {
             this.runningTimer = null;
             this.statusBarItemEl.setText('Harvest: no timer running');
