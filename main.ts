@@ -392,6 +392,7 @@ export default class HarvestPlugin extends Plugin {
     timerInterval: number;
     projectCache: HarvestProjectFull[] = [];
     userId: number | null = null;
+    isOffline: boolean = false;
 
     async onload() {
         //Read in settings
@@ -406,9 +407,9 @@ export default class HarvestPlugin extends Plugin {
         // Set up settings
         this.addSettingTab(new HarvestSettingTab(this.app, this));
 
-        // Initial loading of user and projects
+        // Initial loading of user and projects (silent on startup to avoid popup spam if offline)
         if (this.settings.personalAccessToken && this.settings.accountId) {
-            await this.fetchCurrentUserId();
+            await this.fetchCurrentUserId(true);
         }
 
         // Warm up the project cache on startup
@@ -477,12 +478,15 @@ export default class HarvestPlugin extends Plugin {
     }
 
     async request<T = unknown>(
-        endpoint: string, 
-        method: string = 'GET', 
-        body: Record<string, unknown> | null = null
+        endpoint: string,
+        method: string = 'GET',
+        body: Record<string, unknown> | null = null,
+        silent: boolean = false
     ): Promise<T | null> {
         if (!this.settings.personalAccessToken || !this.settings.accountId) {
-            new Notice('Harvest API credentials are not set.');
+            if (!silent) {
+                new Notice('Harvest API credentials are not set.');
+            }
             return null;
         }
         const headers = {
@@ -500,24 +504,34 @@ export default class HarvestPlugin extends Plugin {
             });
 
             if (response.status >= 400) {
-                new Notice(`Harvest API error: ${response.json.message || response.status}`);
+                if (!silent) {
+                    new Notice(`Harvest API error: ${response.json.message || response.status}`);
+                }
                 return null;
             }
+            // Successful response - we're back online
+            this.isOffline = false;
             return response.json as T;
         } catch (error) {
-            new Notice('Failed to connect to Harvest API.');
+            // Network error - mark as offline
+            this.isOffline = true;
+            if (!silent) {
+                new Notice('Failed to connect to Harvest API.');
+            }
             console.error('Harvest API request error:', error);
             return null;
         }
     }
 
-    async fetchCurrentUserId() {
-        const me = await this.request<HarvestCurrentUser>('/users/me');
+    async fetchCurrentUserId(silent: boolean = false) {
+        const me = await this.request<HarvestCurrentUser>('/users/me', 'GET', null, silent);
         if (me && me.id) {
             this.userId = me.id;
         } else {
             this.userId = null;
-            new Notice('Could not retrieve Harvest user ID.');
+            if (!silent && !this.isOffline) {
+                new Notice('Could not retrieve Harvest user ID.');
+            }
             console.error('Failed to fetch Harvest user ID.');
         }
     }
@@ -543,8 +557,10 @@ export default class HarvestPlugin extends Plugin {
 
         // Get both managed projects and project in time entries. For projects where a user is not a manager,
         // the only way to get a list of projects assigned to that user is through the time entries
-        const managedProjects = await this.getManagedProjects();
-        const recentProjects = await this.getRecentProjectsFromTimeEntries();
+        // Use silent mode for background startup calls (non-forced refresh)
+        const silent = !forceRefresh;
+        const managedProjects = await this.getManagedProjects(silent);
+        const recentProjects = await this.getRecentProjectsFromTimeEntries(silent);
         const combinedProjectMap = new Map<number, HarvestProjectFull>();
         managedProjects.forEach(proj => combinedProjectMap.set(proj.id, proj));
         recentProjects.forEach(proj => {
@@ -557,12 +573,12 @@ export default class HarvestPlugin extends Plugin {
         return this.projectCache;
     }
 
-    async getManagedProjects(): Promise<HarvestProjectFull[]> {
+    async getManagedProjects(silent: boolean = false): Promise<HarvestProjectFull[]> {
         let allProjects: HarvestProjectFull[] = [];
         let page = 1;
         let totalPages = 1;
         do {
-            const data = await this.request<HarvestProjectsResponse>(`/projects?is_active=true&page=${page}`);
+            const data = await this.request<HarvestProjectsResponse>(`/projects?is_active=true&page=${page}`, 'GET', null, silent);
             if (data && data.projects) {
                 allProjects = allProjects.concat(data.projects);
                 totalPages = data.total_pages;
@@ -572,12 +588,12 @@ export default class HarvestPlugin extends Plugin {
         return allProjects;
     }
 
-    async getRecentProjectsFromTimeEntries(): Promise<HarvestProjectFull[]> {
+    async getRecentProjectsFromTimeEntries(silent: boolean = false): Promise<HarvestProjectFull[]> {
         if (!this.userId) return [];
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
-        const data = await this.request<HarvestTimeEntriesResponse>(`/time_entries?from=${fromDate}&user_id=${this.userId}`);
+        const data = await this.request<HarvestTimeEntriesResponse>(`/time_entries?from=${fromDate}&user_id=${this.userId}`, 'GET', null, silent);
         if (!data || !data.time_entries) return [];
         const recentProjectsMap = new Map<number, HarvestProjectFull>();
         data.time_entries.forEach((entry: HarvestTimeEntry) => {
@@ -637,7 +653,14 @@ export default class HarvestPlugin extends Plugin {
 
     async updateRunningTimer() {
         if (!this.userId) return;
-        const data = await this.request<HarvestTimeEntriesResponse>(`/time_entries?is_running=true&user_id=${this.userId}`);
+        const data = await this.request<HarvestTimeEntriesResponse>(`/time_entries?is_running=true&user_id=${this.userId}`, 'GET', null, true);
+
+        // Check if we're offline after the request
+        if (this.isOffline) {
+            this.statusBarItemEl.setText('Harvest: no network connection');
+            return;
+        }
+
         if (data && data.time_entries && data.time_entries.length > 0) {
             this.runningTimer = data.time_entries[0];
             const { project, task, hours } = this.runningTimer;
