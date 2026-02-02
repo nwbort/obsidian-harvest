@@ -248,8 +248,46 @@ function parseTimeRange(tokens: string[]): { from: ISODate, to: ISODate } {
     return { from: formatDate(from), to: formatDate(to) };
 }
 
+// --- HQL SERIALIZERS (for freezing results) ---
+function serializeListToMarkdown(entries: HarvestTimeEntry[], query: HarvestQuery): string {
+    const lines: string[] = [];
+    lines.push(`> [!info] Harvest Time Entries (${query.from} to ${query.to})`);
+    lines.push('');
+    lines.push('| Project | Task | Date | Hours |');
+    lines.push('| --- | --- | --- | ---: |');
+    for (const entry of entries) {
+        lines.push(`| ${entry.project.name} | ${entry.task.name} | ${entry.spent_date} | ${entry.hours.toFixed(2)} |`);
+    }
+    return lines.join('\n');
+}
+
+function serializeSummaryToMarkdown(entries: HarvestTimeEntry[], query: HarvestQuery): string {
+    let totalHours = 0;
+    const projectTotals: { [key: string]: number } = {};
+
+    for (const entry of entries) {
+        totalHours += entry.hours;
+        const projectName = entry.project.name;
+        if (!projectTotals[projectName]) {
+            projectTotals[projectName] = 0;
+        }
+        projectTotals[projectName] += entry.hours;
+    }
+
+    const sortedProjects = Object.keys(projectTotals).sort((a, b) => projectTotals[b] - projectTotals[a]);
+
+    const lines: string[] = [];
+    lines.push(`> [!info] Harvest Time Summary (${query.from} to ${query.to})`);
+    lines.push(`> **Total hours: ${totalHours.toFixed(2)}**`);
+    for (const projectName of sortedProjects) {
+        const projectHours = projectTotals[projectName];
+        lines.push(`> - ${projectName}: ${projectHours.toFixed(2)} hours`);
+    }
+    return lines.join('\n');
+}
+
 // --- HQL RENDERER ---
-function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query: HarvestQuery) {
+function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query: HarvestQuery, onFreeze?: () => void) {
     container.empty();
     const wrapper = container.createDiv({ cls: 'harvest-report' });
 
@@ -262,6 +300,16 @@ function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query
         renderList(wrapper, entries);
     } else if (query.type === QueryType.SUMMARY) {
         renderSummary(wrapper, entries);
+    }
+
+    // Add "Freeze Results" button if callback provided
+    if (onFreeze) {
+        const buttonContainer = wrapper.createDiv({ cls: 'harvest-freeze-container' });
+        const freezeButton = buttonContainer.createEl('button', {
+            text: 'Freeze Results',
+            cls: 'harvest-freeze-button'
+        });
+        freezeButton.addEventListener('click', onFreeze);
     }
 }
 
@@ -351,7 +399,41 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
         const entries = await plugin.getTimeEntries(query);
 
         if (entries) {
-            renderReport(el, entries, query);
+            // Create the freeze callback to replace code block with static markdown
+            const onFreeze = async () => {
+                const sectionInfo = ctx.getSectionInfo(el);
+                if (!sectionInfo) {
+                    new Notice('Could not locate code block in file.');
+                    return;
+                }
+
+                const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+                if (!file || !(file instanceof TFile)) {
+                    new Notice('Could not find the file to update.');
+                    return;
+                }
+
+                // Generate the markdown based on query type
+                const markdown = query.type === QueryType.LIST
+                    ? serializeListToMarkdown(entries, query)
+                    : serializeSummaryToMarkdown(entries, query);
+
+                // Read the file and replace the code block
+                const content = await plugin.app.vault.read(file);
+                const lines = content.split('\n');
+
+                // Replace the lines from lineStart to lineEnd (inclusive) with the markdown
+                const newLines = [
+                    ...lines.slice(0, sectionInfo.lineStart),
+                    markdown,
+                    ...lines.slice(sectionInfo.lineEnd + 1)
+                ];
+
+                await plugin.app.vault.modify(file, newLines.join('\n'));
+                new Notice('Results have been frozen.');
+            };
+
+            renderReport(el, entries, query, onFreeze);
         } else {
             el.setText('Failed to fetch Harvest report.');
         }
