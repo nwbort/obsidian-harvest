@@ -306,8 +306,9 @@ function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query
     if (onFreeze) {
         const buttonContainer = wrapper.createDiv({ cls: 'harvest-freeze-container' });
         const freezeButton = buttonContainer.createEl('button', {
-            text: 'Freeze Results',
-            cls: 'harvest-freeze-button'
+            text: '❆',
+            cls: 'harvest-freeze-button',
+            attr: { 'aria-label': 'Freeze results', 'title': 'Freeze results' }
         });
         freezeButton.addEventListener('click', onFreeze);
     }

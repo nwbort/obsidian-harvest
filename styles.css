@@ -46,18 +46,27 @@
     text-align: right;
 }
 .harvest-freeze-container {
-    margin-top: 1em;
-    display: flex;
-    justify-content: flex-end;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+}
+.harvest-report {
+    position: relative;
+}
+.harvest-report:hover .harvest-freeze-container {
+    opacity: 1;
 }
 .harvest-freeze-button {
-    font-size: 0.85em;
-    padding: 4px 12px;
+    font-size: 1em;
+    padding: 4px 8px;
     cursor: pointer;
     background-color: var(--interactive-normal);
     border: 1px solid var(--background-modifier-border);
     border-radius: 4px;
     color: var(--text-muted);
+    line-height: 1;
 }
 .harvest-freeze-button:hover {
     background-color: var(--interactive-hover);
