@@ -22,7 +22,7 @@ Integrate [Harvest](https://www.getharvest.com/) time tracking directly into you
 
 ### Manual installation
 
-1.  Download the `main.js`, `manifest.json` from the [latest release](https://github.com/nwbort/obsidian-harvest/releases).
+1.  Download the `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/nwbort/obsidian-harvest/releases).
 2.  Navigate to your Obsidian vault's plugin folder: `<YourVault>/.obsidian/plugins/`.
 3.  Create a new folder named `harvest`.
 4.  Move the downloaded files into this new folder.
