@@ -113,12 +113,15 @@ SUMMARY FROM 2025-01-01 TO 2025-01-31
 *   `PAST <number> DAYS` (e.g., `PAST 14 DAYS`)
 *   `FROM <YYYY-MM-DD> TO <YYYY-MM-DD>`
 
+#### Freezing results
+
+When you hover over a rendered report, a freeze button (❆) appears in the bottom-right corner. Clicking it replaces the dynamic `harvest` code block with a static markdown table, preserving the results as plain text in your note. This is useful for archiving a snapshot of your time data that won't change on future renders.
 
 ### 4. Status bar
 
 The status bar item at the bottom of your Obsidian window provides at-a-glance information:
 *   **No timer running:** Displays "Harvest: No timer running".
-*   **Timer active:** Displays the format `Harvest: <Project Name> - <Task Name> (X.XXh)`. This will update periodically based on your polling interval settings.
+*   **Timer active:** Displays the format `Harvest: <Project Name> - <Task Name> (X:XX)`. This will update periodically based on your polling interval settings.
 
 ## Settings
 
