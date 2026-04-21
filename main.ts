@@ -395,7 +395,7 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
         const query = parseQuery(source);
         if (!query) return;
 
-        el.setText('Loading Harvest report...');
+        el.setText('Loading report...');
 
         const entries = await plugin.getTimeEntries(query);
 
@@ -436,7 +436,7 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
 
             renderReport(el, entries, query, onFreeze);
         } else {
-            el.setText('Failed to fetch Harvest report.');
+            el.setText('Failed to fetch report.');
         }
     } catch (e) {
         el.setText(`Error processing Harvest query: ${e.message}`);
@@ -530,7 +530,7 @@ export default class HarvestPlugin extends Plugin {
             id: 'refresh-projects',
             name: 'Refresh projects',
             callback: async () => {
-                new Notice('Refreshing project list from Harvest...');
+                new Notice('Refreshing project list...');
                 await this.fetchAllTrackableProjects(true); // Force a refresh
                 new Notice('Project list has been updated.');
             }
@@ -599,7 +599,7 @@ export default class HarvestPlugin extends Plugin {
             // Network error - mark as offline
             this.isOffline = true;
             if (!silent) {
-                new Notice('Failed to connect to Harvest API.');
+                new Notice('Failed to connect to API.');
             }
             console.error('Harvest API request error:', error);
             return null;
@@ -613,15 +613,15 @@ export default class HarvestPlugin extends Plugin {
         } else {
             this.userId = null;
             if (!silent && !this.isOffline) {
-                new Notice('Could not retrieve Harvest user ID.');
+                new Notice('Could not retrieve user ID.');
             }
-            console.error('Failed to fetch Harvest user ID.');
+            console.error('Failed to fetch user ID.');
         }
     }
     
     async getTimeEntries(query: HarvestQuery): Promise<HarvestTimeEntry[]> {
         if (!this.userId) {
-            new Notice('Harvest user ID not found. Cannot fetch your time entries.');
+            new Notice('User ID not found. Cannot fetch your time entries.');
             return [];
         }
         const endpoint = `/time_entries?from=${query.from}&to=${query.to}&user_id=${this.userId}`;
@@ -897,7 +897,7 @@ class HarvestSettingTab extends PluginSettingTab {
         new Setting(containerEl).setName('Credentials').setHeading();
         new Setting(containerEl)
             .setName('Personal access token')
-            .setDesc('Get this from the developers section of your Harvest ID.')
+            .setDesc('Get this from the developers section of your harvest ID.')
             .addText(text => text.setPlaceholder('Enter your token').setValue(this.plugin.settings.personalAccessToken)
                 .onChange(async (value) => {
                     this.plugin.settings.personalAccessToken = value;
