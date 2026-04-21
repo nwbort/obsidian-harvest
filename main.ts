@@ -255,8 +255,9 @@ function serializeListToMarkdown(entries: HarvestTimeEntry[], query: HarvestQuer
     lines.push('');
     lines.push('| Project | Task | Date | Hours |');
     lines.push('| --- | --- | --- | ---: |');
+    const escapeCell = (s: string) => s.replace(/\|/g, '\\|');
     for (const entry of entries) {
-        lines.push(`| ${entry.project.name} | ${entry.task.name} | ${entry.spent_date} | ${entry.hours.toFixed(2)} |`);
+        lines.push(`| ${escapeCell(entry.project.name)} | ${escapeCell(entry.task.name)} | ${entry.spent_date} | ${entry.hours.toFixed(2)} |`);
     }
     return lines.join('\n');
 }
@@ -352,19 +353,17 @@ function renderSummary(container: HTMLElement, entries: HarvestTimeEntry[]) {
 
     // Bar Chart
     const barChartContainer = summaryDiv.createDiv({ cls: 'harvest-barchart-container' });
-    const colors = ['#84b65a', '#c25956', '#59a7c2', '#c29b59', '#8e59c2', '#c2598e', '#5ac28a'];
+    const NUM_CHART_COLORS = 7;
     let colorIndex = 0;
-    
+
     const sortedProjects = Object.keys(projectTotals).sort((a, b) => projectTotals[b] - projectTotals[a]);
 
     for (const projectName of sortedProjects) {
         const projectHours = projectTotals[projectName];
         const percentage = totalHours > 0 ? (projectHours / totalHours) * 100 : 0;
-        const color = colors[colorIndex % colors.length];
 
-        const bar = barChartContainer.createDiv({ cls: 'harvest-barchart-bar' });
+        const bar = barChartContainer.createDiv({ cls: `harvest-barchart-bar harvest-chart-color-${colorIndex % NUM_CHART_COLORS}` });
         bar.style.setProperty('--bar-width', `${percentage}%`);
-        bar.style.setProperty('--bar-color', color);
         bar.title = `${projectName}: ${projectHours.toFixed(2)} hours`;
         colorIndex++;
     }
@@ -374,11 +373,9 @@ function renderSummary(container: HTMLElement, entries: HarvestTimeEntry[]) {
     colorIndex = 0;
     for (const projectName of sortedProjects) {
         const projectHours = projectTotals[projectName];
-        const color = colors[colorIndex % colors.length];
 
         const legendItem = legendContainer.createDiv({ cls: 'harvest-legend-item' });
-        const colorSwatch = legendItem.createDiv({ cls: 'harvest-legend-swatch' });
-        colorSwatch.style.backgroundColor = color;
+        legendItem.createDiv({ cls: `harvest-legend-swatch harvest-chart-color-${colorIndex % NUM_CHART_COLORS}` });
         legendItem.createSpan({ text: `${projectName}: ${projectHours.toFixed(2)} hours` });
         colorIndex++;
     }
@@ -419,18 +416,15 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
                     ? serializeListToMarkdown(entries, query)
                     : serializeSummaryToMarkdown(entries, query);
 
-                // Read the file and replace the code block
-                const content = await plugin.app.vault.read(file);
-                const lines = content.split('\n');
-
-                // Replace the lines from lineStart to lineEnd (inclusive) with the markdown
-                const newLines = [
-                    ...lines.slice(0, sectionInfo.lineStart),
-                    markdown,
-                    ...lines.slice(sectionInfo.lineEnd + 1)
-                ];
-
-                await plugin.app.vault.modify(file, newLines.join('\n'));
+                await plugin.app.vault.process(file, (content) => {
+                    const lines = content.split('\n');
+                    const newLines = [
+                        ...lines.slice(0, sectionInfo.lineStart),
+                        markdown,
+                        ...lines.slice(sectionInfo.lineEnd + 1)
+                    ];
+                    return newLines.join('\n');
+                });
                 new Notice('Results have been frozen.');
             };
 
@@ -439,7 +433,8 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
             el.setText('Failed to fetch report.');
         }
     } catch (e) {
-        el.setText(`Error processing Harvest query: ${e.message}`);
+        const message = e instanceof Error ? e.message : String(e);
+        el.setText(`Error processing Harvest query: ${message}`);
     }
 };
 
@@ -615,7 +610,6 @@ export default class HarvestPlugin extends Plugin {
             if (!silent && !this.isOffline) {
                 new Notice('Could not retrieve user ID.');
             }
-            console.error('Failed to fetch user ID.');
         }
     }
     
@@ -681,8 +675,8 @@ export default class HarvestPlugin extends Plugin {
         const recentProjectsMap = new Map<number, HarvestProjectFull>();
         data.time_entries.forEach((entry: HarvestTimeEntry) => {
             if (entry.project && !recentProjectsMap.has(entry.project.id)) {
-                // Convert the simplified project from time entry to HarvestProjectFull
-                recentProjectsMap.set(entry.project.id, entry.project as unknown as HarvestProjectFull);
+                const partial = { ...entry.project, client: entry.client } as unknown as HarvestProjectFull;
+                recentProjectsMap.set(entry.project.id, partial);
             }
         });
         return Array.from(recentProjectsMap.values());
@@ -731,6 +725,8 @@ export default class HarvestPlugin extends Plugin {
         if (result) {
             new Notice('Timer started!');
             void this.updateRunningTimer();
+        } else {
+            new Notice('Failed to start timer.');
         }
     }
 
@@ -850,7 +846,7 @@ class TaskSuggestModal extends FuzzySuggestModal<HarvestTaskAssignment> {
     }
 
     getItems(): HarvestTaskAssignment[] {
-        let tasks = [...this.tasks]; // Create a mutable copy
+        let tasks = [...this.tasks];
 
         if (this.activeFile && this.activeFile.parent) {
             const folderPath = this.activeFile.parent.path;
@@ -876,7 +872,7 @@ class TaskSuggestModal extends FuzzySuggestModal<HarvestTaskAssignment> {
     }
     
     renderSuggestion(match: FuzzyMatch<HarvestTaskAssignment>, el: HTMLElement) {
-        el.createEl("div", { text: match.item.task.name });
+        el.createEl('div', { text: match.item.task.name });
     }
 
     onChooseItem(taskAssignment: HarvestTaskAssignment) {
