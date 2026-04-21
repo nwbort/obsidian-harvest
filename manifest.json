@@ -1,7 +1,7 @@
 {
 	"id": "harvest",
 	"name": "Harvest",
-	"version": "1.0.13",
+	"version": "1.0.14",
 	"minAppVersion": "1.9.0",
 	"description": "Interact with Harvest time tracking tools.",
 	"author": "Nick Twort",
