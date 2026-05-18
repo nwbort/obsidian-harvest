@@ -1,6 +1,6 @@
 {
     "name": "harvest",
-    "version": "1.0.16",
+    "version": "1.0.17",
     "description": "Interact with Harvest time tracking tools.",
     "main": "main.js",
     "scripts": {
