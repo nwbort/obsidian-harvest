@@ -12,7 +12,7 @@ Integrate [Harvest](https://www.getharvest.com/) time tracking directly into you
 
 ## How to install
 
-### From the Community plugins tab in Obsidian (coming soon)
+### From the Community plugins tab in Obsidian
 
 1.  Go to `Settings` -> `Community plugins`.
 2.  Make sure "Safe mode" is turned **off**.
