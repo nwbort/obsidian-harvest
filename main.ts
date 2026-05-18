@@ -287,7 +287,7 @@ function serializeSummaryToMarkdown(entries: HarvestTimeEntry[], query: HarvestQ
 }
 
 // --- HQL RENDERER ---
-function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query: HarvestQuery, onFreeze?: () => void) {
+function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query: HarvestQuery, onFreeze?: () => Promise<void>) {
     container.empty();
     const wrapper = container.createDiv({ cls: 'harvest-report' });
 
@@ -310,7 +310,7 @@ function renderReport(container: HTMLElement, entries: HarvestTimeEntry[], query
             cls: 'harvest-freeze-button',
             attr: { 'aria-label': 'Freeze results' }
         });
-        freezeButton.addEventListener('click', onFreeze);
+        freezeButton.addEventListener('click', () => { void onFreeze(); });
     }
 }
 
@@ -439,7 +439,7 @@ const hqlProcessor = (plugin: HarvestPlugin) => async (
             el.setText('Failed to fetch report.');
         }
     } catch (e) {
-        el.setText(`Error processing Harvest query: ${e.message}`);
+        el.setText(`Error processing Harvest query: ${e instanceof Error ? e.message : String(e)}`);
     }
 };
 
@@ -469,10 +469,10 @@ function formatHoursMinutes(decimalHours: number): string {
 
 // Main Plugin Class
 export default class HarvestPlugin extends Plugin {
-    settings: HarvestPluginSettings;
-    statusBarItemEl: HTMLElement;
+    settings!: HarvestPluginSettings;
+    statusBarItemEl!: HTMLElement;
     runningTimer: HarvestTimeEntry | null = null;
-    timerInterval: number;
+    timerInterval!: number;
     projectCache: HarvestProjectFull[] = [];
     userId: number | null = null;
     isOffline: boolean = false;
@@ -548,12 +548,12 @@ export default class HarvestPlugin extends Plugin {
 
     onunload() {
         if (this.timerInterval) {
-            clearInterval(this.timerInterval);
+            activeWindow.clearInterval(this.timerInterval);
         }
     }
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData()) as HarvestPluginSettings;
     }
 
     async saveSettings() {
@@ -588,7 +588,7 @@ export default class HarvestPlugin extends Plugin {
 
             if (response.status >= 400) {
                 if (!silent) {
-                    new Notice(`Harvest API error: ${response.json.message || response.status}`);
+                    new Notice(`Harvest API error: ${(response.json as { message?: string }).message || response.status}`);
                 }
                 return null;
             }
@@ -812,7 +812,7 @@ class ProjectSuggestModal extends FuzzySuggestModal<HarvestProjectFull> {
 
     renderSuggestion(match: FuzzyMatch<HarvestProjectFull>, el: HTMLElement) {
         const project = match.item;
-        el.createEl('div', { text: project.name });
+        el.createDiv({ text: project.name });
         el.createEl('small', { text: project.client?.name || 'No client' });
     }
 
@@ -876,7 +876,7 @@ class TaskSuggestModal extends FuzzySuggestModal<HarvestTaskAssignment> {
     }
     
     renderSuggestion(match: FuzzyMatch<HarvestTaskAssignment>, el: HTMLElement) {
-        el.createEl("div", { text: match.item.task.name });
+        el.createDiv({ text: match.item.task.name });
     }
 
     onChooseItem(taskAssignment: HarvestTaskAssignment) {
