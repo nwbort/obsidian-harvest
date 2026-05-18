@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, Setting, MarkdownPostProcessorContext, requestUrl, TFile } from 'obsidian';
+import { App, FuzzySuggestModal, FuzzyMatch, Notice, Plugin, PluginSettingTab, SecretComponent, Setting, MarkdownPostProcessorContext, requestUrl, TFile } from 'obsidian';
 
 // --- HARVEST API TYPES ---
 interface HarvestClient {
@@ -450,6 +450,7 @@ interface HarvestPluginSettings {
     accountId: string;
     pollingInterval: number;
     folderProjectCache: FolderProjectCache;
+    credentialsMigrated: boolean;
 }
 
 // Default settings
@@ -457,7 +458,8 @@ const DEFAULT_SETTINGS: HarvestPluginSettings = {
     personalAccessToken: '',
     accountId: '',
     pollingInterval: 5, // 5 minutes
-    folderProjectCache: {}
+    folderProjectCache: {},
+    credentialsMigrated: false,
 }
 
 // Helper function to format decimal hours as h:mm
@@ -480,6 +482,7 @@ export default class HarvestPlugin extends Plugin {
     async onload() {
         //Read in settings
         await this.loadSettings();
+        await this.migrateCredentials();
 
         // Set up status bar
         this.statusBarItemEl = this.addStatusBarItem();
@@ -560,21 +563,43 @@ export default class HarvestPlugin extends Plugin {
         await this.saveData(this.settings);
     }
 
+    async migrateCredentials() {
+        if (this.settings.credentialsMigrated) return;
+
+        const rawToken = this.settings.personalAccessToken;
+        const rawAccountId = this.settings.accountId;
+
+        if (rawToken) {
+            this.app.secretStorage.setSecret('harvest-token', rawToken);
+            this.settings.personalAccessToken = 'harvest-token';
+        }
+        if (rawAccountId) {
+            this.app.secretStorage.setSecret('harvest-account-id', rawAccountId);
+            this.settings.accountId = 'harvest-account-id';
+        }
+
+        this.settings.credentialsMigrated = true;
+        await this.saveSettings();
+    }
+
     async request<T = unknown>(
         endpoint: string,
         method: string = 'GET',
         body: Record<string, unknown> | null = null,
         silent: boolean = false
     ): Promise<T | null> {
-        if (!this.settings.personalAccessToken || !this.settings.accountId) {
+        const token = this.app.secretStorage.getSecret(this.settings.personalAccessToken) ?? this.settings.personalAccessToken;
+        const accountId = this.app.secretStorage.getSecret(this.settings.accountId) ?? this.settings.accountId;
+
+        if (!token || !accountId) {
             if (!silent) {
                 new Notice('Harvest API credentials are not set.');
             }
             return null;
         }
         const headers = {
-            'Authorization': `Bearer ${this.settings.personalAccessToken}`,
-            'Harvest-Account-Id': this.settings.accountId,
+            'Authorization': `Bearer ${token}`,
+            'Harvest-Account-Id': accountId,
             'User-Agent': 'Obsidian Harvest Integration',
             'Content-Type': 'application/json'
         };
@@ -897,8 +922,9 @@ class HarvestSettingTab extends PluginSettingTab {
         new Setting(containerEl).setName('Credentials').setHeading();
         new Setting(containerEl)
             .setName('Personal access token')
-            .setDesc('Get this from the developers section of your harvest ID.')
-            .addText(text => text.setPlaceholder('Enter your token').setValue(this.plugin.settings.personalAccessToken)
+            .setDesc('Select or create a secret in SecretStorage containing your Harvest personal access token.')
+            .addComponent(el => new SecretComponent(this.app, el)
+                .setValue(this.plugin.settings.personalAccessToken)
                 .onChange(async (value) => {
                     this.plugin.settings.personalAccessToken = value;
                     await this.plugin.saveSettings();
@@ -908,8 +934,9 @@ class HarvestSettingTab extends PluginSettingTab {
                 }));
         new Setting(containerEl)
             .setName('Account ID')
-            .setDesc('You can also find this on the same page as your token.')
-            .addText(text => text.setPlaceholder('Enter your account ID').setValue(this.plugin.settings.accountId)
+            .setDesc('Select or create a secret in SecretStorage containing your Harvest account ID.')
+            .addComponent(el => new SecretComponent(this.app, el)
+                .setValue(this.plugin.settings.accountId)
                 .onChange(async (value) => {
                     this.plugin.settings.accountId = value;
                     await this.plugin.saveSettings();
